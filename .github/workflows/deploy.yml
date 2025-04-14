@@ -47,13 +47,23 @@ jobs:
           username: ${{ secrets.SERVER_USERNAME }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            # Create network if not exists
-            docker network create langrissar-network || true
-            
             # Deploy application
             docker pull crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest
             docker stop langrissar-server || true
             docker rm langrissar-server || true
+            
+            # Run migrations first
+            docker run --rm \
+              --network host \
+              -e DB_HOST=localhost \
+              -e DB_PORT=3306 \
+              -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
+              -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+              -e DB_DATABASE=${{ secrets.DB_DATABASE }} \
+              crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest \
+              npm run migration:run
+            
+            # Start application
             docker run -d -p 3000:3000 \
               --network host \
               -e DB_HOST=localhost \

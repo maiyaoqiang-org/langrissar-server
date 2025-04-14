@@ -5,7 +5,11 @@
   "scripts": {
     "build": "nest build",
     "start:dev": "nest start --watch",
-    "start:prod": "node dist/src/main.js"
+    "start:prod": "node dist/src/main.js",
+    "typeorm": "typeorm-ts-node-commonjs",
+    "migration:generate": "npm run typeorm -- migration:generate -d src/config/ormconfig.ts",
+    "migration:run": "npm run typeorm -- migration:run -d src/config/ormconfig.ts",
+    "migration:revert": "npm run typeorm -- migration:revert -d src/config/ormconfig.ts"
   },
   "keywords": [],
   "author": "",

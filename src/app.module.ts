@@ -11,16 +11,14 @@ import { Hero } from './hero/entities/hero.entity';
     ConfigModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'mysql',
-      host: process.env.DB_HOST || 'db', // Changed default to 'db' for Docker
+      host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '3306'),
       username: process.env.DB_USERNAME || 'root',
       password: process.env.DB_PASSWORD || '123456',
       database: process.env.DB_DATABASE || 'langrissar',
       entities: [Hero],
-      synchronize: process.env.NODE_ENV !== 'production',
+      synchronize: false, // 关闭自动同步，使用迁移管理
       autoLoadEntities: true,
-      retryAttempts: 5,
-      retryDelay: 3000,
     }),
     HeroModule,
   ],
