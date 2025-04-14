@@ -47,11 +47,27 @@ jobs:
           username: ${{ secrets.SERVER_USERNAME }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            # Create network if not exists
+            docker network create langrissar-network || true
+            
+            # Start MySQL container if not running
+            docker run -d \
+              --name mysql-db \
+              --network langrissar-network \
+              -e MYSQL_ROOT_PASSWORD=${{ secrets.DB_PASSWORD }} \
+              -e MYSQL_DATABASE=${{ secrets.DB_DATABASE }} \
+              mysql:8.0 || true
+            
+            # Wait for MySQL to be ready
+            sleep 30
+            
+            # Deploy application
             docker pull crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest
             docker stop langrissar-server || true
             docker rm langrissar-server || true
             docker run -d -p 3000:3000 \
-              -e DB_HOST=${{ secrets.DB_HOST }} \
+              --network langrissar-network \
+              -e DB_HOST=mysql-db \
               -e DB_PORT=${{ secrets.DB_PORT }} \
               -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
               -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \

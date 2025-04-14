@@ -11,7 +11,7 @@ import { Hero } from './hero/entities/hero.entity';
     ConfigModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'mysql',
-      host: process.env.DB_HOST || 'localhost',
+      host: process.env.DB_HOST || 'db', // Changed default to 'db' for Docker
       port: parseInt(process.env.DB_PORT || '3306'),
       username: process.env.DB_USERNAME || 'root',
       password: process.env.DB_PASSWORD || '123456',
@@ -19,6 +19,8 @@ import { Hero } from './hero/entities/hero.entity';
       entities: [Hero],
       synchronize: process.env.NODE_ENV !== 'production',
       autoLoadEntities: true,
+      retryAttempts: 5,
+      retryDelay: 3000,
     }),
     HeroModule,
   ],
