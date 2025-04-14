@@ -18,4 +18,14 @@ export class Hero {
   @ApiProperty({ description: '是否激活', default: true })
   @Column({ default: true })
   isActive: boolean;
+
+  @Column({ default: 3 })
+  @ApiProperty({ 
+    description: '英雄稀有度',
+    minimum: 1,
+    maximum: 6,
+    default: 3,
+    example: 3
+  })
+  rarity: number;
 }
