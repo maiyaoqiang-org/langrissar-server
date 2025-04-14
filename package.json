@@ -19,6 +19,7 @@
     "@nestjs/platform-express": "^11.0.16",
     "@nestjs/swagger": "^11.1.2",
     "@nestjs/typeorm": "^11.0.0",
+    "crypto": "^1.0.1",
     "mysql2": "^3.14.0",
     "reflect-metadata": "^0.2.2",
     "typeorm": "^0.3.22"
