@@ -1,0 +1,62 @@
+name: Deploy to ACR
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Aliyun ACR
+        env:
+          ACR_USER: ${{ secrets.ACR_USERNAME }}
+          ACR_PASS: ${{ secrets.ACR_PASSWORD }}
+        run: |
+          echo "$ACR_PASS" | docker login crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com -u "$ACR_USER" --password-stdin
+          echo "ACR login successful"
+
+      - name: Build and Push
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_DATABASE: ${{ secrets.DB_DATABASE }}
+          NODE_ENV: production
+        run: |
+          echo "DB_HOST=$DB_HOST" >> .env.production
+          echo "DB_PORT=$DB_PORT" >> .env.production
+          echo "DB_USERNAME=$DB_USERNAME" >> .env.production
+          echo "DB_PASSWORD=$DB_PASSWORD" >> .env.production
+          echo "DB_DATABASE=$DB_DATABASE" >> .env.production
+          echo "NODE_ENV=$NODE_ENV" >> .env.production
+          docker buildx build --push --platform linux/amd64 --tag crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest .
+
+      - name: SSH Deploy
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            docker pull crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest
+            docker stop langrissar-server || true
+            docker rm langrissar-server || true
+            docker run -d -p 3000:3000 \
+              -e DB_HOST=${{ secrets.DB_HOST }} \
+              -e DB_PORT=${{ secrets.DB_PORT }} \
+              -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
+              -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+              -e DB_DATABASE=${{ secrets.DB_DATABASE }} \
+              -e NODE_ENV=production \
+              --name langrissar-server \
+              crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest
