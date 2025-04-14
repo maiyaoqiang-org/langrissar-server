@@ -56,6 +56,8 @@ jobs:
               --network langrissar-network \
               -e MYSQL_ROOT_PASSWORD=${{ secrets.DB_PASSWORD }} \
               -e MYSQL_DATABASE=${{ secrets.DB_DATABASE }} \
+              -e MYSQL_USER=${{ secrets.DB_USERNAME }} \
+              -e MYSQL_PASSWORD=${{ secrets.DB_PASSWORD }} \
               mysql:8.0 || true
             
             # Wait for MySQL to be ready
@@ -68,7 +70,7 @@ jobs:
             docker run -d -p 3000:3000 \
               --network langrissar-network \
               -e DB_HOST=mysql-db \
-              -e DB_PORT=${{ secrets.DB_PORT }} \
+              -e DB_PORT=3306 \
               -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
               -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
               -e DB_DATABASE=${{ secrets.DB_DATABASE }} \
