@@ -17,12 +17,11 @@ jobs:
         uses: docker/setup-buildx-action@v1
 
       - name: Login to Aliyun ACR
-        env:
-          ACR_USER: ${{ secrets.ACR_USERNAME }}
-          ACR_PASS: ${{ secrets.ACR_PASSWORD }}
-        run: |
-          echo "$ACR_PASS" | docker login crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com -u "$ACR_USER" --password-stdin
-          echo "ACR login successful"
+        uses: docker/login-action@v2
+        with:
+          registry: crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
 
       - name: Build and Push
         env:
