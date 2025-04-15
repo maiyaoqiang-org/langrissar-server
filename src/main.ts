@@ -13,7 +13,6 @@ async function bootstrap() {
       .setTitle('Langrisser API')
       .setDescription('Langrisser 游戏 API 文档')
       .setVersion('1.0')
-      .addTag('heroes')
       .build();
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api', app, document);

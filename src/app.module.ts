@@ -4,7 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { HeroModule } from './hero/hero.module';
-import { Hero } from './hero/entities/hero.entity';
+import { UserModule } from './user/user.module';
 
 @Module({
   imports: [
@@ -16,11 +16,12 @@ import { Hero } from './hero/entities/hero.entity';
       username: process.env.DB_USERNAME || 'root',
       password: process.env.DB_PASSWORD || '123456',
       database: process.env.DB_DATABASE || 'langrissar',
-      entities: [Hero],
+      entities: [__dirname + '/**/*.entity{.ts,.js}'],
       synchronize: false, // 关闭自动同步，使用迁移管理
       autoLoadEntities: true,
     }),
     HeroModule,
+    UserModule,
   ],
   controllers: [AppController],
   providers: [AppService],

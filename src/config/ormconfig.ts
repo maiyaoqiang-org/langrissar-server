@@ -1,5 +1,4 @@
 import { DataSource } from 'typeorm';
-import { Hero } from '../hero/entities/hero.entity';
 import * as path from 'path';
 
 export default new DataSource({
@@ -9,7 +8,7 @@ export default new DataSource({
   username: process.env.DB_USERNAME || 'root',
   password: process.env.DB_PASSWORD || '123456',
   database: process.env.DB_DATABASE || 'langrissar',
-  entities: [Hero],
+  entities: [__dirname + '/**/*.entity{.ts,.js}'],
   migrations: [path.join(__dirname, '..', 'migrations', '*{.ts,.js}')],
   synchronize: false,
   migrationsRun: true,
