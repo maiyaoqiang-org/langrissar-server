@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Request, BadRequestException, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { CreateUserDto, LoginDto, CreateInvitationCodeDto } from './dto/create-user.dto';
+import { QueryInvitationCodeDto } from './dto/query-invitation-code.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -46,5 +47,19 @@ export class UserController {
     @Body() createInvitationCodeDto: CreateInvitationCodeDto,
   ) {
     return this.userService.createInvitationCodes(req.user.sub, createInvitationCodeDto);
+  }
+
+  @Post('invitation-code/query')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '分页查询邀请码' })
+  @ApiResponse({ status: 200, description: '查询成功' })
+  @ApiResponse({ status: 401, description: '未授权' })
+  queryInvitationCodes(
+    @Request() req,
+    @Body() queryDto: QueryInvitationCodeDto,
+  ) {
+    return this.userService.queryInvitationCodes(req.user.sub, queryDto);
   }
 }

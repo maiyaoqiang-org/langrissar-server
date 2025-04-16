@@ -1,5 +1,6 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
+import { Exclude } from 'class-transformer';
 
 @Entity()
 export class User {
@@ -12,6 +13,7 @@ export class User {
   phone: string;
 
   @ApiProperty({ description: '密码' })
+  @Exclude()
   @Column()
   password: string;
 

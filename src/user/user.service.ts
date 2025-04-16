@@ -7,6 +7,7 @@ import * as svgCaptcha from 'svg-captcha';
 import { User } from './entities/user.entity';
 import { InvitationCode } from './entities/invitation-code.entity';
 import { CreateUserDto, LoginDto, CreateInvitationCodeDto } from './dto/create-user.dto';
+import { QueryInvitationCodeDto } from './dto/query-invitation-code.dto';
 
 @Injectable()
 export class UserService {
@@ -153,6 +154,54 @@ export class UserService {
       code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return code;
+  }
+
+  async queryInvitationCodes(userId: number, queryDto: QueryInvitationCodeDto) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId }
+    });
+
+    if (!user || user.role !== 'admin') {
+      throw new UnauthorizedException('只有管理员可以查询邀请码');
+    }
+
+    const query = this.invitationCodeRepository.createQueryBuilder('invitationCode')
+      .leftJoinAndSelect('invitationCode.usedBy', 'usedBy')
+      .leftJoinAndSelect('invitationCode.createdBy', 'createdBy')
+      .orderBy('invitationCode.createdAt', 'DESC');
+
+    if (queryDto.isUsed) {
+      query.andWhere('invitationCode.isUsed = :isUsed', { isUsed: queryDto.isUsed });
+    }
+
+    if (queryDto.createdById) {
+      query.andWhere('invitationCode.createdById = :createdById', { createdById: queryDto.createdById });
+    }
+
+    if (queryDto.startDate) {
+      const startDate = new Date(queryDto.startDate);
+      startDate.setHours(0, 0, 0, 0);
+      query.andWhere('invitationCode.createdAt >= :startDate', { startDate });
+    }
+
+    if (queryDto.endDate) {
+      const endDate = new Date(queryDto.endDate);
+      endDate.setHours(23, 59, 59, 999);
+      query.andWhere('invitationCode.createdAt <= :endDate', { endDate });
+    }
+
+    const [items, total] = await query
+      .skip((queryDto.page - 1) * queryDto.pageSize)
+      .take(queryDto.pageSize)
+      .getManyAndCount();
+
+    return {
+      items,
+      total,
+      page: queryDto.page,
+      pageSize: queryDto.pageSize,
+      totalPages: Math.ceil(total / queryDto.pageSize)
+    };
   }
 
   private generateTokenResponse(user: User) {
