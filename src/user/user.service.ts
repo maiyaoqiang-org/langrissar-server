@@ -8,6 +8,8 @@ import { User } from './entities/user.entity';
 import { InvitationCode } from './entities/invitation-code.entity';
 import { CreateUserDto, LoginDto, CreateInvitationCodeDto } from './dto/create-user.dto';
 import { QueryInvitationCodeDto } from './dto/query-invitation-code.dto';
+import { QueryUserDto } from './dto/query-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UserService {
@@ -46,19 +48,18 @@ export class UserService {
     }
 
     // 创建新用户
-    const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
-    const user = this.userRepository.create({
+    const newUser = this.userRepository.create({
       phone: createUserDto.phone,
-      password: hashedPassword,
-      role: 'user'
+      password: await bcrypt.hash(createUserDto.password, 10),
+      username: createUserDto.username,
+      role: 'user',
+      isActive: true
     });
+    const savedUser = await this.userRepository.save(newUser);
 
-    const savedUser = await this.userRepository.save(user);
-
-    // 标记邀请码为已使用
+    // 更新邀请码状态
     invitationCode.isUsed = true;
-    invitationCode.usedById = savedUser.id;
-    invitationCode.usedAt = new Date();
+    invitationCode.usedById = newUser.id;
     await this.invitationCodeRepository.save(invitationCode);
 
     // 清除验证码
@@ -190,18 +191,73 @@ export class UserService {
       query.andWhere('invitationCode.createdAt <= :endDate', { endDate });
     }
 
+    const page = Number(queryDto.page) || 1;
+    const pageSize = Number(queryDto.pageSize) || 10;
     const [items, total] = await query
-      .skip((queryDto.page - 1) * queryDto.pageSize)
-      .take(queryDto.pageSize)
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
       .getManyAndCount();
 
     return {
       items,
       total,
-      page: queryDto.page,
-      pageSize: queryDto.pageSize,
+      page: page,
+      pageSize: pageSize,
       totalPages: Math.ceil(total / queryDto.pageSize)
     };
+  }
+
+  async queryUsers(userId: number, queryDto: QueryUserDto) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId }
+    });
+
+    const query = this.userRepository.createQueryBuilder('user')
+      .orderBy('user.createdAt', 'DESC');
+
+    if (queryDto.role) {
+      query.andWhere('user.role = :role', { role: queryDto.role });
+    }
+
+    if (queryDto.isActive !== undefined) {
+      query.andWhere('user.isActive = :isActive', { isActive: queryDto.isActive });
+    }
+
+    if (queryDto.phone) {
+      query.andWhere('user.phone LIKE :phone', { phone: `%${queryDto.phone}%` });
+    }
+
+    const page = Number(queryDto.page) || 1;
+    const pageSize = Number(queryDto.pageSize) || 10;
+    const [items, total] = await query
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
+      .getManyAndCount();
+
+    return {
+      items,
+      total,
+      page: page,
+      pageSize: pageSize,
+      totalPages: Math.ceil(total / queryDto.pageSize)
+    };
+  }
+
+  async updateUser(userId: number, updateUserDto: UpdateUserDto) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new BadRequestException('用户不存在');
+    }
+
+    if (updateUserDto.password) {
+      updateUserDto.password = await bcrypt.hash(updateUserDto.password, 10);
+    }
+
+    await this.userRepository.update(userId, updateUserDto);
+    return this.userRepository.findOne({ where: { id: userId } });
   }
 
   private generateTokenResponse(user: User) {

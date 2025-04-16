@@ -9,6 +9,13 @@ export class CreateUserDto {
   phone: string;
 
   @ApiProperty({ 
+    description: '用户名',
+    example: 'username123',
+    required: true
+  })
+  username: string;
+
+  @ApiProperty({ 
     description: '密码',
     example: 'password123',
     required: true

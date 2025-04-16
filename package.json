@@ -7,7 +7,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/src/main.js",
     "typeorm": "typeorm-ts-node-commonjs",
-    "migration:generate": "npm run typeorm -- migration:generate -d src/config/ormconfig.ts",
+    "migration:generate": "npm run typeorm -- migration:generate ./src/migrations/UserMigration -d src/config/ormconfig.ts",
     "migration:run": "npm run typeorm -- migration:run -d src/config/ormconfig.ts",
     "migration:revert": "npm run typeorm -- migration:revert -d src/config/ormconfig.ts"
   },
@@ -29,7 +29,9 @@
     "@types/passport-jwt": "^4.0.1",
     "bcrypt": "^5.1.1",
     "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
     "crypto": "^1.0.1",
+    "dayjs": "^1.11.13",
     "mysql2": "^3.14.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",

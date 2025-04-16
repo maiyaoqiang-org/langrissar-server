@@ -8,8 +8,11 @@ export default new DataSource({
   username: process.env.DB_USERNAME || 'root',
   password: process.env.DB_PASSWORD || '123456',
   database: process.env.DB_DATABASE || 'langrissar',
-  entities: [__dirname + '/**/*.entity{.ts,.js}'],
-  migrations: [path.join(__dirname, '..', 'migrations', '*{.ts,.js}')],
+  entities: [__dirname + '/../**/*.entity{.ts,.js}'],
+  migrations: [ 
+    path.join(__dirname, '..', 'migrations', '*.ts'),
+    path.join(__dirname, '..', 'migrations', '*.js')
+  ],
   synchronize: false,
   migrationsRun: true,
   migrationsTableName: 'migrations',
