@@ -165,7 +165,7 @@ export class UserService {
       phone: user.phone,
       role: user.role,
       access_token: token,
-      expiresIn: tokenInfo.exp
+      expireIn: tokenInfo.exp
     };
   }
 }
