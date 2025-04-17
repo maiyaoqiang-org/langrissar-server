@@ -55,7 +55,7 @@ jobs:
             # Run migrations first
             docker run --rm \
               --network host \
-              -e DB_HOST=localhost \
+              -e DB_HOST=127.0.0.1 \
               -e DB_PORT=3306 \
               -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
               -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
@@ -66,7 +66,7 @@ jobs:
             # Start application
             docker run -d -p 3000:3000 \
               --network host \
-              -e DB_HOST=localhost \
+              -e DB_HOST=127.0.0.1 \
               -e DB_PORT=3306 \
               -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
               -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
