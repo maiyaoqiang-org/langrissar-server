@@ -1,6 +1,8 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { User } from './user.entity';
+import * as dayjs from 'dayjs';
+import { Transform } from 'class-transformer';
 
 @Entity()
 export class InvitationCode {
@@ -34,9 +36,11 @@ export class InvitationCode {
 
   @ApiProperty({ description: '创建时间' })
   @CreateDateColumn()
+  @Transform(({ value }) => dayjs(value).format('YYYY-MM-DD HH:mm:ss'), { toPlainOnly: true })
   createdAt: Date;
 
   @ApiProperty({ description: '使用时间' })
   @Column({ nullable: true })
+  @Transform(({ value }) => value && dayjs(value).format('YYYY-MM-DD HH:mm:ss') || "", { toPlainOnly: true })
   usedAt: Date;
 }

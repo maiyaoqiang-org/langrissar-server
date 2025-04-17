@@ -1,6 +1,6 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, AfterLoad } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
-import { Exclude } from 'class-transformer';
+import { Exclude, instanceToPlain } from 'class-transformer';
 import * as dayjs from 'dayjs';
 import { Transform } from 'class-transformer';
 
@@ -40,4 +40,8 @@ export class User {
   @ApiProperty({ description: '用户名' })
   @Column()
   username: string;
+
+  toJSON() {
+    return instanceToPlain(this);
+  }
 }

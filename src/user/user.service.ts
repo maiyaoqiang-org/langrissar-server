@@ -231,7 +231,6 @@ export class UserService {
 
     const query = this.userRepository.createQueryBuilder('user')
       .orderBy('user.createdAt', 'DESC');
-console.log(111,queryDto);
 
     if (queryDto.role) {
       query.andWhere('user.role = :role', { role: queryDto.role });
@@ -253,11 +252,11 @@ console.log(111,queryDto);
       .getManyAndCount();
 
     return {
-      items,
+      items: items.map(item => item.toJSON()),
       total,
       page: page,
       pageSize: pageSize,
-      totalPages: Math.ceil(total / queryDto.pageSize)
+      totalPages: Math.ceil(total / pageSize)
     };
   }
 
@@ -327,14 +326,12 @@ console.log(111,queryDto);
     }
 
   private generateTokenResponse(user: User) {
-    const payload = { sub: user.id, phone: user.phone, role: user.role };
+    const payload = { sub: user.id, ...user.toJSON() };
     const token = this.jwtService.sign(payload);
     const tokenInfo = this.jwtService.decode(token) as { exp: number };
     
     return {
-      id: user.id,
-      phone: user.phone,
-      role: user.role,
+      ...payload,
       access_token: token,
       expireIn: tokenInfo.exp
     };
