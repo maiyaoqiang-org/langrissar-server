@@ -17,6 +17,11 @@ export class QueryUserDto {
   @IsString()
   phone?: string;
 
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  username?: string;
+
   @ApiProperty({ default: 1 })
   @IsOptional()
   page: number;

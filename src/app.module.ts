@@ -7,7 +7,11 @@ import { AppService } from './app.service';
 import { HeroModule } from './hero/hero.module';
 import { UserModule } from './user/user.module';
 import { JwtStrategy } from './auth/jwt.strategy';
-
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { APP_FILTER } from '@nestjs/core';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { TypeOrmExceptionFilter } from './common/filters/typeorm-exception.filter';
 @Module({
   imports: [
     ConfigModule.forRoot(),
@@ -27,6 +31,19 @@ import { JwtStrategy } from './auth/jwt.strategy';
     PassportModule.register({ defaultStrategy: 'jwt' }),
   ],
   controllers: [AppController],
-  providers: [AppService, JwtStrategy],
+  providers: [AppService, JwtStrategy,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TransformInterceptor,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: HttpExceptionFilter,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: TypeOrmExceptionFilter,
+    },
+  ],
 })
 export class AppModule {}

@@ -244,6 +244,10 @@ export class UserService {
       query.andWhere('user.phone LIKE :phone', { phone: `%${queryDto.phone}%` });
     }
 
+    if (queryDto.username) {
+      query.andWhere('user.username LIKE :username', { username: `%${queryDto.username}%` });
+    }
+
     const page = Number(queryDto.page) || 1;
     const pageSize = Number(queryDto.pageSize) || 10;
     const [items, total] = await query
