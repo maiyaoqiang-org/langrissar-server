@@ -11,6 +11,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { AdminOnly } from '../auth/admin-only.decorator';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 
 @ApiTags('用户')
 @Controller('user')
@@ -121,5 +122,20 @@ export class UserController {
     @Body() changePasswordDto: ChangePasswordDto,
   ) {
     return this.userService.changePassword(req.user.sub, changePasswordDto);
+  }
+
+  @Post('create')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '管理员创建用户' })
+  @ApiResponse({ status: 201, description: '创建成功' })
+  @ApiResponse({ status: 400, description: '创建失败' })
+  @ApiResponse({ status: 401, description: '未授权' })
+  createUser(
+    @Request() req,
+    @Body() createUserDto: AdminCreateUserDto,
+  ) {
+    return this.userService.createUser(req.user.sub, createUserDto);
   }
 }

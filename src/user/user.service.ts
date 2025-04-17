@@ -11,6 +11,7 @@ import { QueryInvitationCodeDto } from './dto/query-invitation-code.dto';
 import { QueryUserDto } from './dto/query-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 
 @Injectable()
 export class UserService {
@@ -68,6 +69,21 @@ export class UserService {
 
     // 返回用户信息和token
     return this.generateTokenResponse(savedUser);
+  }
+
+  async createUser(adminId: number, createUserDto: AdminCreateUserDto) {
+    // 创建新用户
+    const newUser = this.userRepository.create({
+      phone: createUserDto.phone,
+      password: await bcrypt.hash(createUserDto.password, 10),
+      username: createUserDto.username,
+      role: createUserDto.role || 'user',
+      isActive: true
+    });
+    
+    const savedUser = await this.userRepository.save(newUser);
+    
+    return savedUser;
   }
 
   async login(loginDto: LoginDto) {
