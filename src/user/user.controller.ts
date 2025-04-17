@@ -80,6 +80,8 @@ export class UserController {
     @Request() req,
     @Body() queryDto: QueryUserDto,
   ) {
+    console.log(61,queryDto);
+    
     return this.userService.queryUsers(req.user.sub, queryDto);
   }
 

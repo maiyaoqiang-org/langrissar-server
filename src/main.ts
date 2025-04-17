@@ -24,6 +24,8 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
+      whitelist: true,       // 自动删除 DTO 外的字段
+      // forbidNonWhitelisted: true, // 拒绝包含非白名单字段的请求
     }),
   );
   await app.listen(3000, '0.0.0.0');

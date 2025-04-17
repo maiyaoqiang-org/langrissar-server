@@ -18,8 +18,10 @@ export class QueryUserDto {
   phone?: string;
 
   @ApiProperty({ default: 1 })
+  @IsOptional()
   page: number;
 
   @ApiProperty({ default: 10 })
+  @IsOptional()
   pageSize: number;
 }

@@ -22,6 +22,4 @@ export class UpdateUserDto {
   @IsBoolean()
   isActive?: boolean;
 
-  @Exclude()
-  password?: string;
 }

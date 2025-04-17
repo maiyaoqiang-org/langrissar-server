@@ -231,6 +231,7 @@ export class UserService {
 
     const query = this.userRepository.createQueryBuilder('user')
       .orderBy('user.createdAt', 'DESC');
+console.log(111,queryDto);
 
     if (queryDto.role) {
       query.andWhere('user.role = :role', { role: queryDto.role });

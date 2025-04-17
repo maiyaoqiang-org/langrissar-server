@@ -1,4 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { IsOptional, IsNumber, IsBoolean, IsString, Min, Max, IsDateString } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class QueryInvitationCodeDto {
   @ApiProperty({
@@ -7,6 +9,10 @@ export class QueryInvitationCodeDto {
     default: 1,
     required: false
   })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Transform(({ value }) => Number(value))
   page: number = 1;
 
   @ApiProperty({
@@ -15,12 +21,23 @@ export class QueryInvitationCodeDto {
     default: 10,
     required: false
   })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(100)
+  @Transform(({ value }) => Number(value))
   pageSize: number = 10;
 
   @ApiProperty({
     description: '是否已使用',
     example: true,
     required: false
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
   })
   isUsed?: boolean;
 
@@ -29,6 +46,8 @@ export class QueryInvitationCodeDto {
     example: '2024-01-01',
     required: false
   })
+  @IsOptional()
+  @IsDateString()
   startDate?: string;
 
   @ApiProperty({
@@ -36,6 +55,8 @@ export class QueryInvitationCodeDto {
     example: '2024-12-31',
     required: false
   })
+  @IsOptional()
+  @IsDateString()
   endDate?: string;
 
   @ApiProperty({
@@ -43,5 +64,9 @@ export class QueryInvitationCodeDto {
     example: 1,
     required: false
   })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Transform(({ value }) => Number(value))
   createdById?: number;
 }
