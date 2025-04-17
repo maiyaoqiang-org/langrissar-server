@@ -9,6 +9,8 @@ import { Roles } from '../auth/roles.decorator';
 import { QueryUserDto } from './dto/query-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { AdminOnly } from '../auth/admin-only.decorator';
+import { UpdatePasswordDto } from './dto/update-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @ApiTags('用户')
 @Controller('user')
@@ -28,6 +30,8 @@ export class UserController {
   @ApiResponse({ status: 200, description: '登录成功' })
   @ApiResponse({ status: 401, description: '登录失败' })
   login(@Body() loginDto: LoginDto) {
+    console.log(666,loginDto);
+    
     return this.userService.login(loginDto);
   }
 
@@ -91,6 +95,33 @@ export class UserController {
     @Request() req,
     @Body() updateUserDto: UpdateUserDto,
   ) {
-    return this.userService.updateUser(req.user.sub, updateUserDto);
+    return this.userService.updateUser(updateUserDto.id, updateUserDto);
+  }
+
+  @Post('update-password')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '更新用户密码' })
+  @ApiResponse({ status: 200, description: '更新成功' })
+  @ApiResponse({ status: 400, description: '更新失败' })
+  updatePassword(
+    @Request() req,
+    @Body() updatePasswordDto: UpdatePasswordDto,
+  ) {
+    return this.userService.updatePassword(updatePasswordDto.id, updatePasswordDto.password);
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '用户修改自己的密码' })
+  @ApiResponse({ status: 200, description: '修改成功' })
+  @ApiResponse({ status: 400, description: '修改失败' })
+  changePassword(
+    @Request() req,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    return this.userService.changePassword(req.user.sub, changePasswordDto);
   }
 }

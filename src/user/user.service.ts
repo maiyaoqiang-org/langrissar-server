@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as svgCaptcha from 'svg-captcha';
@@ -10,6 +10,7 @@ import { CreateUserDto, LoginDto, CreateInvitationCodeDto } from './dto/create-u
 import { QueryInvitationCodeDto } from './dto/query-invitation-code.dto';
 import { QueryUserDto } from './dto/query-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Injectable()
 export class UserService {
@@ -252,13 +253,61 @@ export class UserService {
       throw new BadRequestException('用户不存在');
     }
 
-    if (updateUserDto.password) {
-      updateUserDto.password = await bcrypt.hash(updateUserDto.password, 10);
+    // 如果要更新手机号，且与当前用户的手机号不同，才检查唯一性
+    if (updateUserDto.phone && updateUserDto.phone !== user.phone) {
+      const existingUser = await this.userRepository.findOne({
+        where: { phone: updateUserDto.phone, id: Not(userId) }
+      });
+      if (existingUser) {
+        throw new BadRequestException('该手机号已被其他用户使用');
+      }
     }
 
-    await this.userRepository.update(userId, updateUserDto);
+    const { id, ...updateData } = updateUserDto;
+
+    await this.userRepository.update(userId, updateData);
     return this.userRepository.findOne({ where: { id: userId } });
+
+
   }
+
+  async updatePassword(userId: number, password: string) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new BadRequestException('用户不存在');
+    }
+
+    // 对密码进行哈希加密
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await this.userRepository.update(userId, { password: hashedPassword });
+
+    return { message: '密码更新成功' };
+  }
+
+  async changePassword(userId: number, changePasswordDto: ChangePasswordDto) {
+      const user = await this.userRepository.findOne({
+        where: { id: userId }
+      });
+  
+      if (!user) {
+        throw new BadRequestException('用户不存在');
+      }
+  
+      // 验证旧密码
+      const isPasswordValid = await bcrypt.compare(changePasswordDto.oldPassword, user.password);
+      if (!isPasswordValid) {
+        throw new BadRequestException('旧密码错误');
+      }
+  
+      // 更新新密码
+      const hashedPassword = await bcrypt.hash(changePasswordDto.newPassword, 10);
+      await this.userRepository.update(userId, { password: hashedPassword });
+  
+      return { message: '密码修改成功' };
+    }
 
   private generateTokenResponse(user: User) {
     const payload = { sub: user.id, phone: user.phone, role: user.role };

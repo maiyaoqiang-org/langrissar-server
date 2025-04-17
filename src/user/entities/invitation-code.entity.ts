@@ -20,7 +20,7 @@ export class InvitationCode {
   @Column({ nullable: true })
   createdById: number;
 
-  @ManyToOne(() => User, { nullable: true })
+  @ManyToOne(() => User, { onDelete: 'SET NULL', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'createdById' })
   createdBy: User;
 
@@ -28,7 +28,7 @@ export class InvitationCode {
   @Column({ nullable: true })
   usedById: number;
 
-  @ManyToOne(() => User, { nullable: true })
+  @ManyToOne(() => User, { onDelete: 'SET NULL', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'usedById' })
   usedBy: User;
 
