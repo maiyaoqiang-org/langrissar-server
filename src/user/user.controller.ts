@@ -30,8 +30,6 @@ export class UserController {
   @ApiResponse({ status: 200, description: '登录成功' })
   @ApiResponse({ status: 401, description: '登录失败' })
   login(@Body() loginDto: LoginDto) {
-    console.log(666,loginDto);
-    
     return this.userService.login(loginDto);
   }
 
