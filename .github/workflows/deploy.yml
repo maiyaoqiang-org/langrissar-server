@@ -52,17 +52,6 @@ jobs:
             docker stop langrissar-server || true
             docker rm langrissar-server || true
             
-            # Run migrations first
-            docker run --rm \
-              --network host \
-              -e DB_HOST=127.0.0.1 \
-              -e DB_PORT=3306 \
-              -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
-              -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
-              -e DB_DATABASE=${{ secrets.DB_DATABASE }} \
-              crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest \
-              npm run migration:run
-            
             # Start application
             docker run -d -p 3000:3000 \
               --network host \

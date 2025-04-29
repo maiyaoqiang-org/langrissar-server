@@ -2,18 +2,26 @@ version: '3.8'
 
 services:
   app:
+    image: crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest
     build: .
     ports:
       - "3000:3000"
     environment:
-      - DB_HOST=localhost
+      - DB_HOST=host.docker.internal
       - DB_PORT=3306
-      - DB_USERNAME=${DB_USERNAME}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_DATABASE=${DB_DATABASE}
+      - DB_USERNAME=root
+      - DB_PASSWORD=123456
+      - DB_DATABASE=langrissar
       - NODE_ENV=production
-    network_mode: host
+    networks:
+      - app-network
     restart: unless-stopped
+    command: >
+      sh -c "npm run migration:run && node dist/src/main.js"
+
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
   mysql_data:

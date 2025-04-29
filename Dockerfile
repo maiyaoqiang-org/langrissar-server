@@ -17,5 +17,5 @@ RUN npm run build
 # Expose port
 EXPOSE 3000
 
-# Start the application
-CMD ["node", "dist/src/main.js"]
+# Run migrations and start application
+CMD ["sh", "-c", "npm run migration:run && node dist/src/main.js"]
