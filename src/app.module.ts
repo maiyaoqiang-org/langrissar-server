@@ -12,6 +12,8 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 import { APP_FILTER } from '@nestjs/core';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TypeOrmExceptionFilter } from './common/filters/typeorm-exception.filter';
+import { ScraperModule } from './scraper/scraper.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot(),
@@ -29,6 +31,7 @@ import { TypeOrmExceptionFilter } from './common/filters/typeorm-exception.filte
     HeroModule,
     UserModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
+    ScraperModule,
   ],
   controllers: [AppController],
   providers: [AppService, JwtStrategy,
