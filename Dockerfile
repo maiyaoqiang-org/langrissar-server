@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
 # 安装 Chromium 和必要的依赖
 RUN apk add --no-cache \

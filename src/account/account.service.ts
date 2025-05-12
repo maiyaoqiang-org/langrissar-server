@@ -334,4 +334,27 @@ export class AccountService {
       throw error;
     }
   }
+
+  async clearUsedCdkeys(): Promise<{ success: boolean; count: number }> {
+    try {
+      // 清空数据库中的记录
+      const result = await this.usedCdkeyRepository.clear();
+      
+      // 清空内存缓存
+      const cacheSize = this.usedCdkeys.size;
+      this.usedCdkeys.clear();
+      
+      // 发送飞书通知
+      const message = `清除CDKey缓存成功：\n已清除 ${cacheSize} 个缓存记录`;
+      await this.feishuService.sendMessage(message);
+
+      return {
+        success: true,
+        count: cacheSize
+      };
+    } catch (error) {
+      this.logger.error('清除CDKey缓存失败', error);
+      throw error;
+    }
+  }
 }

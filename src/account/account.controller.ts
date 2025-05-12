@@ -52,4 +52,12 @@ export class AccountController {
   async autoGetAndUseCdkey() {
     return this.accountService.autoGetAndUseCdkey();
   }
+
+  @Get('clear-cdkey-cache')
+  @ApiOperation({ summary: '清除所有CDKey缓存' })
+  @ApiResponse({ status: 200, description: '清除成功' })
+  @ApiResponse({ status: 400, description: '清除失败' })
+  async clearUsedCdkeys() {
+    return this.accountService.clearUsedCdkeys();
+  }
 }
