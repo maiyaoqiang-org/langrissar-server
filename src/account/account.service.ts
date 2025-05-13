@@ -5,14 +5,13 @@ import { Account } from "./entities/account.entity";
 import { UsedCdkey } from "./entities/used-cdkey.entity";
 import { FeishuService } from "../common/services/feishu.service";
 import { ScraperService } from "../scraper/scraper.service";
-import { Cron } from "@nestjs/schedule";
 import axios from "axios";
 import * as querystring from "querystring";
 import { CreateAccountDto, UpdateAccountDto } from "./dto/account.dto";
 import { QueryAccountDto } from "./dto/query-account.dto";
+import { CronJob } from 'cron';
 
 export interface ResultItem {
-  // 添加 export 关键字
   username: string;
   success: boolean;
   response?: any;
@@ -32,8 +31,38 @@ export class AccountService {
     private feishuService: FeishuService,
     private scraperService: ScraperService
   ) {
-    // 服务启动时从数据库加载已使用的CDKey
     this.loadUsedCdkeys();
+    this.initCronJobs();
+  }
+
+  private initCronJobs() {
+    const timezone = 'Asia/Shanghai';
+
+    if (process.env.NODE_ENV !== "development") {
+      new CronJob('0 15 17 * * *', () => {
+        this.autoGetAndUseCdkey();
+      }, null, true, timezone);
+
+      // 每天早上9点执行获取CDKey
+      new CronJob('0 0 9 * * *', () => {
+        this.autoGetAndUseCdkey();
+      }, null, true, timezone);
+
+      // 每天凌晨1点执行获取每日福利
+      new CronJob('0 0 1 * * *', () => {
+        this.getPredayReward();
+      }, null, true, timezone);
+
+      // 每周一凌晨2点执行获取雪莉福利
+      new CronJob('0 0 2 * * 1', () => {
+        this.getWeeklyReward();
+      }, null, true, timezone);
+
+      // 每月8号9点执行获取每月福利
+      new CronJob('0 0 9 8 * *', () => {
+        this.getMonthlyReward();
+      }, null, true, timezone);
+    }
   }
 
   // 从数据库加载已使用的CDKey
@@ -51,10 +80,6 @@ export class AccountService {
     return this.accountRepository.find();
   }
 
-  // 添加定时任务装饰器，每天凌晨1点执行
-  @Cron("0 0 1 * * *", {
-    disabled: process.env.NODE_ENV === "development",
-  })
   async getPredayReward(): Promise<ResultItem[]> {
     try {
       const accounts = await this.findAll();
@@ -118,10 +143,6 @@ export class AccountService {
     }
   }
 
-  // 添加雪莉福利领取方法 每周二凌晨2点执行
-  @Cron("0 0 2 * * 1", {
-    disabled: process.env.NODE_ENV === "development",
-  })
   async getWeeklyReward(): Promise<ResultItem[]> {
     try {
       const accounts = await this.findAll();
@@ -184,10 +205,6 @@ export class AccountService {
     }
   }
 
-  // 添加每月8号福利领取方法 每月8号早上9点执行
-  @Cron("0 0 9 8 * *", {
-    disabled: process.env.NODE_ENV === "development",
-  })
   async getMonthlyReward(): Promise<ResultItem[]> {
     try {
       const accounts = await this.findAll();
