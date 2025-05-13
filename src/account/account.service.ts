@@ -39,10 +39,6 @@ export class AccountService {
     const timezone = 'Asia/Shanghai';
 
     if (process.env.NODE_ENV !== "development") {
-      new CronJob('0 15 17 * * *', () => {
-        this.autoGetAndUseCdkey();
-      }, null, true, timezone);
-
       // 每天早上9点执行获取CDKey
       new CronJob('0 0 9 * * *', () => {
         this.autoGetAndUseCdkey();
