@@ -1,17 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Account } from './entities/account.entity';
-import { UsedCdkey } from './entities/used-cdkey.entity';
-import { FeishuService } from '../common/services/feishu.service';
-import { ScraperService } from '../scraper/scraper.service';
-import { Cron } from '@nestjs/schedule';
-import axios from 'axios';
-import * as querystring from 'querystring';
-import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
-import { QueryAccountDto } from './dto/query-account.dto';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { Account } from "./entities/account.entity";
+import { UsedCdkey } from "./entities/used-cdkey.entity";
+import { FeishuService } from "../common/services/feishu.service";
+import { ScraperService } from "../scraper/scraper.service";
+import { Cron } from "@nestjs/schedule";
+import axios from "axios";
+import * as querystring from "querystring";
+import { CreateAccountDto, UpdateAccountDto } from "./dto/account.dto";
+import { QueryAccountDto } from "./dto/query-account.dto";
 
-export interface ResultItem {  // 添加 export 关键字
+export interface ResultItem {
+  // 添加 export 关键字
   username: string;
   success: boolean;
   response?: any;
@@ -39,10 +40,10 @@ export class AccountService {
   private async loadUsedCdkeys() {
     try {
       const usedCdkeys = await this.usedCdkeyRepository.find();
-      usedCdkeys.forEach(item => this.usedCdkeys.add(item.cdkey));
+      usedCdkeys.forEach((item) => this.usedCdkeys.add(item.cdkey));
       this.logger.log(`已从数据库加载 ${usedCdkeys.length} 个已使用的CDKey`);
     } catch (error) {
-      this.logger.error('加载已使用CDKey失败', error);
+      this.logger.error("加载已使用CDKey失败", error);
     }
   }
 
@@ -51,7 +52,9 @@ export class AccountService {
   }
 
   // 添加定时任务装饰器，每天凌晨1点执行
-  @Cron('0 0 1 * * *')
+  @Cron("0 0 1 * * *", {
+    disabled: process.env.NODE_ENV === "development",
+  })
   async getPredayReward(): Promise<ResultItem[]> {
     try {
       const accounts = await this.findAll();
@@ -59,15 +62,17 @@ export class AccountService {
 
       for (const account of accounts) {
         const params = {
-          key: 'mz_ex_obcenter',
-          id: '81',
+          key: "mz_ex_obcenter",
+          id: "81",
           userid: account.userid,
           roleid: account.roleid,
           ext1: account.serverid,
         };
 
         try {
-          const url = `https://activity.zlongame.com/activity/cmn/exchange/exchange.do?${querystring.stringify(params)}`;
+          const url = `https://activity.zlongame.com/activity/cmn/exchange/exchange.do?${querystring.stringify(
+            params
+          )}`;
           const response = await axios.get(url);
           results.push({
             username: account.username,
@@ -84,32 +89,39 @@ export class AccountService {
       }
 
       // 整理消息内容
-      const successCount = results.filter(r => r.response?.data?.success).length;
+      const successCount = results.filter(
+        (r) => r.response?.data?.success
+      ).length;
       const failCount = results.length - successCount;
-      
-      const message = `每日福利领取结果：\n` +
+
+      const message =
+        `每日福利领取结果：\n` +
         `总计：${results.length}个账号\n` +
         `成功：${successCount}个\n` +
         `失败：${failCount}个\n\n` +
         `详细信息：\n` +
-        results.map(r => {
-          const status = r.response?.data?.success ? '成功' : '失败';
-          const code = r.response?.data?.code || '未知';
-          return `${r.username}: ${status} (code: ${code})`;
-        }).join('\n');
+        results
+          .map((r) => {
+            const status = r.response?.data?.success ? "成功" : "失败";
+            const code = r.response?.data?.code || "未知";
+            return `${r.username}: ${status} (code: ${code})`;
+          })
+          .join("\n");
 
       // 发送飞书通知
       await this.feishuService.sendMessage(message);
 
       return results;
     } catch (error) {
-      this.logger.error('领取每日福利失败', error);
+      this.logger.error("领取每日福利失败", error);
       throw error;
     }
   }
 
-  // 添加雪莉福利领取方法
-  @Cron('0 0 2 * * 1')  // 每周二凌晨2点执行
+  // 添加雪莉福利领取方法 每周二凌晨2点执行
+  @Cron("0 0 2 * * 1", {
+    disabled: process.env.NODE_ENV === "development",
+  })
   async getWeeklyReward(): Promise<ResultItem[]> {
     try {
       const accounts = await this.findAll();
@@ -117,13 +129,15 @@ export class AccountService {
 
       for (const account of accounts) {
         const params = {
-          key: 'mz_wx_reward',
+          key: "mz_wx_reward",
           roleid: account.roleid,
           ext1: account.serverid,
         };
 
         try {
-          const url = `https://activity.zlongame.com/activity/cmn/lot/wheel.do?${querystring.stringify(params)}`;
+          const url = `https://activity.zlongame.com/activity/cmn/lot/wheel.do?${querystring.stringify(
+            params
+          )}`;
           const response = await axios.get(url);
           results.push({
             username: account.username,
@@ -140,33 +154,40 @@ export class AccountService {
       }
 
       // 整理消息内容
-      const successCount = results.filter(r => r.response?.data?.success).length;
+      const successCount = results.filter(
+        (r) => r.response?.data?.success
+      ).length;
       const failCount = results.length - successCount;
-      
-      const message = `每周二雪莉福利领取结果：\n` +
+
+      const message =
+        `每周二雪莉福利领取结果：\n` +
         `总计：${results.length}个账号\n` +
         `成功：${successCount}个\n` +
         `失败：${failCount}个\n\n` +
         `详细信息：\n` +
-        results.map(r => {
-          const status = r.response?.data?.success ? '成功' : '失败';
-          const code = r.response?.data?.code || '未知';
-          const rewardName = r.response?.data?.info?.name || '未知奖励';
-          return `${r.username}: ${status} (code: ${code}, 奖励: ${rewardName})`;
-        }).join('\n');
+        results
+          .map((r) => {
+            const status = r.response?.data?.success ? "成功" : "失败";
+            const code = r.response?.data?.code || "未知";
+            const rewardName = r.response?.data?.info?.name || "未知奖励";
+            return `${r.username}: ${status} (code: ${code}, 奖励: ${rewardName})`;
+          })
+          .join("\n");
 
       // 发送飞书通知
       await this.feishuService.sendMessage(message);
 
       return results;
     } catch (error) {
-      this.logger.error('领取雪莉福利失败', error);
+      this.logger.error("领取雪莉福利失败", error);
       throw error;
     }
   }
 
-  // 添加每月8号福利领取方法
-  @Cron('0 0 9 8 * *')  // 每月8号早上9点执行
+  // 添加每月8号福利领取方法 每月8号早上9点执行
+  @Cron("0 0 9 8 * *", {
+    disabled: process.env.NODE_ENV === "development",
+  })
   async getMonthlyReward(): Promise<ResultItem[]> {
     try {
       const accounts = await this.findAll();
@@ -174,15 +195,17 @@ export class AccountService {
 
       for (const account of accounts) {
         const params = {
-          key: 'mz_ex_obcenter',
-          id: '97',
+          key: "mz_ex_obcenter",
+          id: "97",
           userid: account.userid,
           roleid: account.roleid,
           ext1: account.serverid,
         };
 
         try {
-          const url = `https://activity.zlongame.com/activity/cmn/exchange/exchange.do?${querystring.stringify(params)}`;
+          const url = `https://activity.zlongame.com/activity/cmn/exchange/exchange.do?${querystring.stringify(
+            params
+          )}`;
           const response = await axios.get(url);
           results.push({
             username: account.username,
@@ -199,26 +222,31 @@ export class AccountService {
       }
 
       // 整理消息内容
-      const successCount = results.filter(r => r.response?.data?.success).length;
+      const successCount = results.filter(
+        (r) => r.response?.data?.success
+      ).length;
       const failCount = results.length - successCount;
-      
-      const message = `每月8号福利领取结果：\n` +
+
+      const message =
+        `每月8号福利领取结果：\n` +
         `总计：${results.length}个账号\n` +
         `成功：${successCount}个\n` +
         `失败：${failCount}个\n\n` +
         `详细信息：\n` +
-        results.map(r => {
-          const status = r.response?.data?.success ? '成功' : '失败';
-          const code = r.response?.data?.code || '未知';
-          return `${r.username}: ${status} (code: ${code})`;
-        }).join('\n');
+        results
+          .map((r) => {
+            const status = r.response?.data?.success ? "成功" : "失败";
+            const code = r.response?.data?.code || "未知";
+            return `${r.username}: ${status} (code: ${code})`;
+          })
+          .join("\n");
 
       // 发送飞书通知
       await this.feishuService.sendMessage(message);
 
       return results;
     } catch (error) {
-      this.logger.error('领取每月福利失败', error);
+      this.logger.error("领取每月福利失败", error);
       throw error;
     }
   }
@@ -236,18 +264,20 @@ export class AccountService {
 
       for (const account of accounts) {
         const params = {
-          appkey: '1486458782785',
-          card_channel: '0123456789',
-          type: '2',
-          _: '1710731751697',
+          appkey: "1486458782785",
+          card_channel: "0123456789",
+          type: "2",
+          _: "1710731751697",
           card_user: account.roleid,
           card_role: account.roleid,
           card_server: account.serverid,
-          card_code: cdkey
+          card_code: cdkey,
         };
 
         try {
-          const url = `https://activity.zlongame.com/activity/cmn/card/csmweb.do?${querystring.stringify(params)}`;
+          const url = `https://activity.zlongame.com/activity/cmn/card/csmweb.do?${querystring.stringify(
+            params
+          )}`;
           const response = await axios.get(url);
           results.push({
             username: account.username,
@@ -264,19 +294,24 @@ export class AccountService {
       }
 
       // 整理消息内容
-      const successCount = results.filter(r => r.response?.data?.success).length;
+      const successCount = results.filter(
+        (r) => r.response?.data?.success
+      ).length;
       const failCount = results.length - successCount;
-      
-      const message = `CDKey(${cdkey})领取结果：\n` +
+
+      const message =
+        `CDKey(${cdkey})领取结果：\n` +
         `总计：${results.length}个账号\n` +
         `成功：${successCount}个\n` +
         `失败：${failCount}个\n\n` +
         `详细信息：\n` +
-        results.map(r => {
-          const status = r.response?.data?.success ? '成功' : '失败';
-          const code = r.response?.data?.code || '未知';
-          return `${r.username}: ${status} (code: ${code})`;
-        }).join('\n');
+        results
+          .map((r) => {
+            const status = r.response?.data?.success ? "成功" : "失败";
+            const code = r.response?.data?.code || "未知";
+            return `${r.username}: ${status} (code: ${code})`;
+          })
+          .join("\n");
 
       // 发送飞书通知
       await this.feishuService.sendMessage(message);
@@ -289,22 +324,27 @@ export class AccountService {
 
       return results;
     } catch (error) {
-      this.logger.error('领取CDKey失败', error);
+      this.logger.error("领取CDKey失败", error);
       throw error;
     }
   }
-
-  @Cron('0 0 9 * * *') // 每天早上9点执行
+  
+  // 每天早上9点执行
+  @Cron("0 0 9 * * *", {
+    disabled: process.env.NODE_ENV === "development",
+  })
   async autoGetAndUseCdkey(): Promise<string[]> {
     try {
       // 直接调用 scraperService
       const scraperResult = await this.scraperService.scrape({
-        url: 'https://wiki.biligame.com/langrisser/Giftcode',
-        selector: '.cdkey-table .bikited-copy'
+        url: "https://wiki.biligame.com/langrisser/Giftcode",
+        selector: ".cdkey-table .bikited-copy",
       });
 
       // 处理返回结果，过滤掉 null 值并转换类型
-      const cdkeys = scraperResult.content.filter((item): item is string => item !== null);
+      const cdkeys = scraperResult.content.filter(
+        (item): item is string => item !== null
+      );
       const results: string[] = [];
       const skippedCdkeys: string[] = [];
 
@@ -327,20 +367,26 @@ export class AccountService {
       }
 
       // 发送汇总消息（无论是否有新的CDKey都发送）
-      const message = `自动CDKey领取汇总：\n` +
+      const message =
+        `自动CDKey领取汇总：\n` +
         `检测到CDKey总数：${cdkeys.length}个\n` +
         `新领取：${results.length}个\n` +
         `已使用：${skippedCdkeys.length}个\n\n` +
-        (results.length > 0 ? `新领取的CDKey：\n${results.join('\n')}\n\n` : '') +
-        (skippedCdkeys.length > 0 ? `已使用的CDKey：\n${skippedCdkeys.join('\n')}` : '');
+        (results.length > 0
+          ? `新领取的CDKey：\n${results.join("\n")}\n\n`
+          : "") +
+        (skippedCdkeys.length > 0
+          ? `已使用的CDKey：\n${skippedCdkeys.join("\n")}`
+          : "");
 
       await this.feishuService.sendMessage(message);
 
       return results;
-
     } catch (error) {
-      this.logger.error('自动获取CDKey失败', error);
-      await this.feishuService.sendMessage(`自动获取CDKey失败：${error.message}`);
+      this.logger.error("自动获取CDKey失败", error);
+      await this.feishuService.sendMessage(
+        `自动获取CDKey失败：${error.message}`
+      );
       throw error;
     }
   }
@@ -349,21 +395,21 @@ export class AccountService {
     try {
       // 清空数据库中的记录
       const result = await this.usedCdkeyRepository.clear();
-      
+
       // 清空内存缓存
       const cacheSize = this.usedCdkeys.size;
       this.usedCdkeys.clear();
-      
+
       // 发送飞书通知
       const message = `清除CDKey缓存成功：\n已清除 ${cacheSize} 个缓存记录`;
       await this.feishuService.sendMessage(message);
 
       return {
         success: true,
-        count: cacheSize
+        count: cacheSize,
       };
     } catch (error) {
-      this.logger.error('清除CDKey缓存失败', error);
+      this.logger.error("清除CDKey缓存失败", error);
       throw error;
     }
   }
@@ -373,14 +419,19 @@ export class AccountService {
     return this.accountRepository.save(account);
   }
 
-  async updateAccount(id: number, updateAccountDto: UpdateAccountDto): Promise<Account> {
+  async updateAccount(
+    id: number,
+    updateAccountDto: UpdateAccountDto
+  ): Promise<Account> {
     await this.accountRepository.update(id, updateAccountDto);
-    const updatedAccount = await this.accountRepository.findOne({ where: { id } });
-  
+    const updatedAccount = await this.accountRepository.findOne({
+      where: { id },
+    });
+
     if (!updatedAccount) {
       throw new Error(`Account with id ${id} not found`);
     }
-  
+
     return updatedAccount;
   }
 
@@ -388,24 +439,37 @@ export class AccountService {
     await this.accountRepository.delete(id);
   }
 
-  async findAllPaginated(queryDto: QueryAccountDto): Promise<{ items: Account[]; total: number; page: number; pageSize: number; totalPages: number }> {
-    const query = this.accountRepository.createQueryBuilder('account')
-      .orderBy('account.createdAt', 'DESC');
+  async findAllPaginated(
+    queryDto: QueryAccountDto
+  ): Promise<{
+    items: Account[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  }> {
+    const query = this.accountRepository
+      .createQueryBuilder("account")
+      .orderBy("account.createdAt", "DESC");
 
     if (queryDto.username) {
-      query.andWhere('account.username LIKE :username', { username: `%${queryDto.username}%` });
+      query.andWhere("account.username LIKE :username", {
+        username: `%${queryDto.username}%`,
+      });
     }
 
     if (queryDto.userid) {
-      query.andWhere('account.userid = :userid', { userid: queryDto.userid });
+      query.andWhere("account.userid = :userid", { userid: queryDto.userid });
     }
 
     if (queryDto.roleid) {
-      query.andWhere('account.roleid = :roleid', { roleid: queryDto.roleid });
+      query.andWhere("account.roleid = :roleid", { roleid: queryDto.roleid });
     }
 
     if (queryDto.serverid) {
-      query.andWhere('account.serverid = :serverid', { serverid: queryDto.serverid });
+      query.andWhere("account.serverid = :serverid", {
+        serverid: queryDto.serverid,
+      });
     }
 
     const page = Number(queryDto.page) || 1;
@@ -420,7 +484,7 @@ export class AccountService {
       total,
       page,
       pageSize,
-      totalPages: Math.ceil(total / pageSize)
+      totalPages: Math.ceil(total / pageSize),
     };
   }
 }
