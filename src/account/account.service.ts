@@ -346,10 +346,6 @@ export class AccountService {
     }
   }
   
-  // 每天早上9点执行
-  @Cron("0 0 9 * * *", {
-    disabled: process.env.NODE_ENV === "development",
-  })
   async autoGetAndUseCdkey(): Promise<string[]> {
     try {
       // 直接调用 scraperService
