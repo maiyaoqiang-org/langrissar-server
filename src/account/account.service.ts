@@ -8,6 +8,8 @@ import { ScraperService } from '../scraper/scraper.service';
 import { Cron } from '@nestjs/schedule';
 import axios from 'axios';
 import * as querystring from 'querystring';
+import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
+import { QueryAccountDto } from './dto/query-account.dto';
 
 export interface ResultItem {  // 添加 export 关键字
   username: string;
@@ -107,7 +109,7 @@ export class AccountService {
   }
 
   // 添加雪莉福利领取方法
-  @Cron('0 0 2 * * 2')  // 每周二凌晨2点执行
+  @Cron('0 0 2 * * 1')  // 每周二凌晨2点执行
   async getWeeklyReward(): Promise<ResultItem[]> {
     try {
       const accounts = await this.findAll();
@@ -356,5 +358,61 @@ export class AccountService {
       this.logger.error('清除CDKey缓存失败', error);
       throw error;
     }
+  }
+
+  async createAccount(createAccountDto: CreateAccountDto): Promise<Account> {
+    const account = this.accountRepository.create(createAccountDto);
+    return this.accountRepository.save(account);
+  }
+
+  async updateAccount(id: number, updateAccountDto: UpdateAccountDto): Promise<Account> {
+    await this.accountRepository.update(id, updateAccountDto);
+    const updatedAccount = await this.accountRepository.findOne({ where: { id } });
+  
+    if (!updatedAccount) {
+      throw new Error(`Account with id ${id} not found`);
+    }
+  
+    return updatedAccount;
+  }
+
+  async deleteAccount(id: number): Promise<void> {
+    await this.accountRepository.delete(id);
+  }
+
+  async findAllPaginated(queryDto: QueryAccountDto): Promise<{ items: Account[]; total: number; page: number; pageSize: number; totalPages: number }> {
+    const query = this.accountRepository.createQueryBuilder('account')
+      .orderBy('account.createdAt', 'DESC');
+
+    if (queryDto.username) {
+      query.andWhere('account.username LIKE :username', { username: `%${queryDto.username}%` });
+    }
+
+    if (queryDto.userid) {
+      query.andWhere('account.userid = :userid', { userid: queryDto.userid });
+    }
+
+    if (queryDto.roleid) {
+      query.andWhere('account.roleid = :roleid', { roleid: queryDto.roleid });
+    }
+
+    if (queryDto.serverid) {
+      query.andWhere('account.serverid = :serverid', { serverid: queryDto.serverid });
+    }
+
+    const page = Number(queryDto.page) || 1;
+    const pageSize = Number(queryDto.pageSize) || 10;
+    const [items, total] = await query
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
+      .getManyAndCount();
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize)
+    };
   }
 }
