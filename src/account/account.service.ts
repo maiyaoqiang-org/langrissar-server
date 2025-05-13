@@ -228,6 +228,12 @@ export class AccountService {
       const accounts = await this.findAll();
       const results: ResultItem[] = [];
 
+      // 先检查是否已经使用过这个 CDKey
+      if (this.usedCdkeys.has(cdkey)) {
+        this.logger.log(`CDKey ${cdkey} 已经使用过，跳过`);
+        return results;
+      }
+
       for (const account of accounts) {
         const params = {
           appkey: '1486458782785',
@@ -275,6 +281,12 @@ export class AccountService {
       // 发送飞书通知
       await this.feishuService.sendMessage(message);
 
+      // 如果有成功的领取，则保存 CDKey 到缓存和数据库
+      if (successCount > 0) {
+        await this.usedCdkeyRepository.save({ cdkey });
+        this.usedCdkeys.add(cdkey);
+      }
+
       return results;
     } catch (error) {
       this.logger.error('领取CDKey失败', error);
@@ -308,10 +320,6 @@ export class AccountService {
         try {
           // 尝试领取 CDKey
           await this.getCdkeyReward(cdkey);
-          
-          // 保存到数据库并添加到缓存
-          await this.usedCdkeyRepository.save({ cdkey });
-          this.usedCdkeys.add(cdkey);
           results.push(cdkey);
         } catch (error) {
           this.logger.error(`处理CDKey ${cdkey} 失败`, error);

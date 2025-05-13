@@ -52,6 +52,7 @@ export class AccountController {
   }
 
   @Get('auto-cdkey-reward')
+  @ApiOperation({ summary: '自动领取CDKey奖励' })
   async autoGetAndUseCdkey() {
     return this.accountService.autoGetAndUseCdkey();
   }
