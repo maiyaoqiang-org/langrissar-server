@@ -16,6 +16,7 @@ import { ScraperModule } from './scraper/scraper.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TasksModule } from './tasks/tasks.module';
 import { AccountModule } from './account/account.module';
+import { CozeModule } from './coze/coze.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { AccountModule } from './account/account.module';
     ScheduleModule.forRoot(),
     TasksModule,
     AccountModule,
+    CozeModule,
   ],
   controllers: [AppController],
   providers: [AppService, JwtStrategy,
