@@ -7,6 +7,7 @@ import { Reflector } from '@nestjs/core';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
+  // 启用基本的 CORS 支持，让浏览器处理跨域限制
   app.enableCors();
   
   // 只在非生产环境启用 Swagger

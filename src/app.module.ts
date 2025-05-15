@@ -17,6 +17,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { TasksModule } from './tasks/tasks.module';
 import { AccountModule } from './account/account.module';
 import { CozeModule } from './coze/coze.module';
+import { ProxyModule } from './proxy/proxy.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { CozeModule } from './coze/coze.module';
     TasksModule,
     AccountModule,
     CozeModule,
+    ProxyModule, // 添加 ProxyModule
   ],
   controllers: [AppController],
   providers: [AppService, JwtStrategy,
