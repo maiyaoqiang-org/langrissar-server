@@ -54,8 +54,8 @@ export class AccountService {
         this.getWeeklyReward();
       }, null, true, timezone);
 
-      // 每月8号9点执行获取每月福利
-      new CronJob('0 0 9 8 * *', () => {
+      // 每月8-14号凌晨1点半执行获取每月福利
+      new CronJob('0 30 1 8-14 * *', () => {
         this.getMonthlyReward();
       }, null, true, timezone);
     }
