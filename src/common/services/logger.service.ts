@@ -9,7 +9,9 @@ export class LoggerService {
       LoggerService.instance = winston.createLogger({
         format: winston.format.combine(
           winston.format.timestamp(),
-          winston.format.json()
+          winston.format.printf(({ timestamp, level, message }) => {
+            return `${timestamp} ${level}: ${message}`;
+          })
         ),
         transports: [
           // 控制台输出
