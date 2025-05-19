@@ -19,11 +19,11 @@ export class LoggingInterceptor implements NestInterceptor {
 
     // 打印请求信息
     this.logger.log(`[请求] ${method} ${url}`, {
-      body: body || {},
-      query: query || {},
-      params: params || {},
+      body,
+      query,
+      params,
     });
-    return next.handle();
+    return next.handle()
     // return next.handle().pipe(
     //   tap({
     //     next: (data) => {
