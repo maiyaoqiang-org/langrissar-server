@@ -3,6 +3,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ClassSerializerInterceptor, ValidationPipe, Logger, ConsoleLogger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 class CustomLogger extends ConsoleLogger {
   getTimestamp() {
@@ -49,6 +50,7 @@ async function bootstrap() {
       // forbidNonWhitelisted: true, // 拒绝包含非白名单字段的请求
     }),
   );
+  app.useGlobalInterceptors(new LoggingInterceptor());
   await app.listen(3000, '0.0.0.0');
 }
 bootstrap();
