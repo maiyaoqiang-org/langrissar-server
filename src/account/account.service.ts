@@ -39,23 +39,23 @@ export class AccountService {
     const timezone = 'Asia/Shanghai';
 
     if (process.env.NODE_ENV !== "development") {
-      // 每天早上9点执行获取CDKey
-      new CronJob('0 0 9 * * *', () => {
+      // 每天早上9点和晚上22点执行获取CDKey
+      new CronJob('0 0 9,22 * * *', () => {
         this.autoGetAndUseCdkey();
       }, null, true, timezone);
 
-      // 每天凌晨1点执行获取每日福利
-      new CronJob('0 0 1 * * *', () => {
+      // 每天凌晨0点01分执行获取每日福利
+      new CronJob('1 0 0 * * *', () => {
         this.getPredayReward();
       }, null, true, timezone);
 
-      // 每周一凌晨2点执行获取雪莉福利
-      new CronJob('0 0 2 * * 1', () => {
+      // 每周二凌晨0点01分执行获取雪莉福利
+      new CronJob('2 0 0 * * 2', () => {
         this.getWeeklyReward();
       }, null, true, timezone);
 
-      // 每月8-14号凌晨1点半执行获取每月福利
-      new CronJob('0 30 1 8-14 * *', () => {
+      // 每月8-14号凌晨0点05分执行获取每月福利
+      new CronJob('5 0 0 8-14 * *', () => {
         this.getMonthlyReward();
       }, null, true, timezone);
     }

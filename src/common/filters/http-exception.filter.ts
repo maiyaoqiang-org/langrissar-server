@@ -18,6 +18,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
+    // 如果是404错误，直接返回响应，不记录日志
+    if (status === HttpStatus.NOT_FOUND) {
+      response.status(status).json({
+        code: status,
+        message: "Not Found",
+        data: null,
+      });
+      return;
+    }
+
+    // 其他错误正常记录日志
     Logger.error(exception);
 
     const message =
