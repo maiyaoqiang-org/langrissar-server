@@ -15,31 +15,20 @@ export class LoggingInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest();
     const { method, url, body, query, params } = request;
-    // const now = Date.now();
 
     // 打印请求信息
-    this.logger.log(`[请求] ${method} ${url}`, {
+    const logInfo: any = {
       body,
       query,
       params,
-    });
-    return next.handle()
-    // return next.handle().pipe(
-    //   tap({
-    //     next: (data) => {
-    //       // 打印响应信息
-    //       this.logger.log(`[响应] ${method} ${url} ${Date.now() - now}ms`, {
-    //         data,
-    //       });
-    //     },
-    //     error: (error) => {
-    //       // 打印错误信息
-    //       this.logger.error(`[错误] ${method} ${url} ${Date.now() - now}ms`, {
-    //         error: error.message,
-    //         stack: error.stack,
-    //       });
-    //     },
-    //   })
-    // );
+    };
+
+    // 如果是 proxy 接口，额外打印 x-target-url
+    if (url.startsWith('/proxy')) {
+      logInfo.targetUrl = request.headers['x-target-url'];
+    }
+
+    this.logger.log(`[请求] ${method} ${url}`, logInfo);
+    return next.handle();
   }
 }
