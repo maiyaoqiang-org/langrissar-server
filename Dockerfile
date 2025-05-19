@@ -16,6 +16,10 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
 
 WORKDIR /app
 
+# 创建日志目录并设置权限
+RUN mkdir -p /app/logs && \
+    chown -R node:node /app/logs
+
 # Copy package files
 COPY package*.json ./
 
@@ -25,11 +29,20 @@ RUN npm install
 # Copy source code
 COPY . .
 
+# 确保日志目录的权限
+RUN chown -R node:node /app
+
+# 切换到非 root 用户
+USER node
+
 # Build the application
 RUN npm run build
 
 # Expose port
 EXPOSE 3000
+
+# 创建日志目录的数据卷
+VOLUME ["/app/logs"]
 
 # Run migrations and start application
 CMD ["sh", "-c", "npm run migration:run && node dist/src/main.js"]
