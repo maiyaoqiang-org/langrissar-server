@@ -5,6 +5,9 @@ import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
 async function bootstrap() {
+  // 设置时区为上海
+  process.env.TZ = 'Asia/Shanghai';
+  
   const app = await NestFactory.create(AppModule);
   
   // 启用基本的 CORS 支持，让浏览器处理跨域限制
