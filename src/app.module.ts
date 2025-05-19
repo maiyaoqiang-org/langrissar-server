@@ -14,7 +14,6 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TypeOrmExceptionFilter } from './common/filters/typeorm-exception.filter';
 import { ScraperModule } from './scraper/scraper.module';
 import { ScheduleModule } from '@nestjs/schedule';
-import { TasksModule } from './tasks/tasks.module';
 import { AccountModule } from './account/account.module';
 import { CozeModule } from './coze/coze.module';
 import { ProxyModule } from './proxy/proxy.module';
@@ -38,7 +37,6 @@ import { ProxyModule } from './proxy/proxy.module';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     ScraperModule,
     ScheduleModule.forRoot(),
-    TasksModule,
     AccountModule,
     CozeModule,
     ProxyModule, // 添加 ProxyModule

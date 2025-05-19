@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Account } from "./entities/account.entity";
@@ -10,6 +10,7 @@ import * as querystring from "querystring";
 import { CreateAccountDto, UpdateAccountDto } from "./dto/account.dto";
 import { QueryAccountDto } from "./dto/query-account.dto";
 import { CronJob } from 'cron';
+import { LoggerService } from '../common/services/logger.service';
 
 export interface ResultItem {
   username: string;
@@ -20,7 +21,7 @@ export interface ResultItem {
 
 @Injectable()
 export class AccountService {
-  private readonly logger = new Logger(AccountService.name);
+  private readonly logger = LoggerService.getInstance();
   private usedCdkeys: Set<string> = new Set();
 
   constructor(
@@ -66,7 +67,7 @@ export class AccountService {
     try {
       const usedCdkeys = await this.usedCdkeyRepository.find();
       usedCdkeys.forEach((item) => this.usedCdkeys.add(item.cdkey));
-      this.logger.log(`已从数据库加载 ${usedCdkeys.length} 个已使用的CDKey`);
+      this.logger.info(`已从数据库加载 ${usedCdkeys.length} 个已使用的CDKey`);
     } catch (error) {
       this.logger.error("加载已使用CDKey失败", error);
     }
@@ -271,7 +272,7 @@ export class AccountService {
 
       // 先检查是否已经使用过这个 CDKey
       if (this.usedCdkeys.has(cdkey)) {
-        this.logger.log(`CDKey ${cdkey} 已经使用过，跳过`);
+        this.logger.info(`CDKey ${cdkey} 已经使用过，跳过`);
         return results;
       }
 
@@ -362,7 +363,7 @@ export class AccountService {
         // 检查是否已经使用过
         if (this.usedCdkeys.has(cdkey)) {
           skippedCdkeys.push(cdkey);
-          this.logger.log(`CDKey ${cdkey} 已经使用过，跳过`);
+          this.logger.info(`CDKey ${cdkey} 已经使用过，跳过`);
           continue;
         }
 

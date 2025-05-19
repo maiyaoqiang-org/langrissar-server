@@ -4,6 +4,7 @@ import { AppModule } from './app.module';
 import { ClassSerializerInterceptor, ValidationPipe, Logger, ConsoleLogger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { LoggerService } from './common/services/logger.service';
 
 class CustomLogger extends ConsoleLogger {
   getTimestamp() {
@@ -54,3 +55,31 @@ async function bootstrap() {
   await app.listen(3000, '0.0.0.0');
 }
 bootstrap();
+
+const logger = LoggerService.getInstance();
+
+// 替换全局的 console.log
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+const originalConsoleWarn = console.warn;
+const originalConsoleInfo = console.info;
+
+console.log = (...args) => {
+  logger.info(args);
+  originalConsoleLog.apply(console, args);
+};
+
+console.error = (...args) => {
+  logger.error(args);
+  originalConsoleError.apply(console, args);
+};
+
+console.warn = (...args) => {
+  logger.warn(args);
+  originalConsoleWarn.apply(console, args);
+};
+
+console.info = (...args) => {
+  logger.info(args);
+  originalConsoleInfo.apply(console, args);
+};
