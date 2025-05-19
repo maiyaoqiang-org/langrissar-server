@@ -1,14 +1,31 @@
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
+import { ClassSerializerInterceptor, ValidationPipe, Logger, ConsoleLogger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+
+class CustomLogger extends ConsoleLogger {
+  getTimestamp() {
+    const localeStringOptions: Intl.DateTimeFormatOptions = {
+      year: 'numeric' as const,
+      month: '2-digit' as const,
+      day: '2-digit' as const,
+      hour: '2-digit' as const,
+      minute: '2-digit' as const,
+      second: '2-digit' as const,
+      hour12: false
+    };
+    return new Date().toLocaleString('zh-CN', localeStringOptions).replace(',', '');
+  }
+}
 
 async function bootstrap() {
   // 设置时区为上海
   process.env.TZ = 'Asia/Shanghai';
   
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: new CustomLogger(),
+  });
   
   // 启用基本的 CORS 支持，让浏览器处理跨域限制
   app.enableCors();
