@@ -55,16 +55,22 @@ jobs:
             docker pull allinurl/goaccess:latest
             docker stop goaccess || true
             docker rm goaccess || true
+            
+            # 创建 GoAccess 报告目录
+            mkdir -p /data/langrissar/goaccess
+            chmod 777 /data/langrissar/goaccess
+            
             docker run -d \
               --name goaccess \
               -p 7890:7890 \
               -v /data/langrissar/logs:/srv/logs:ro \
+              -v /data/langrissar/goaccess:/srv/report:rw \
               allinurl/goaccess \
               --log-format=COMBINED \
               --real-time-html \
               --port=7890 \
               --log-file=/srv/logs/http-*.log \
-              --output=/srv/logs/report.html
+              --output=/srv/report/report.html
             
             # Deploy application
             docker pull crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest
