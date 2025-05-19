@@ -47,15 +47,16 @@ jobs:
           username: ${{ secrets.SERVER_USERNAME }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            # 创建日志目录（如果不存在）
+            # 创建日志目录并设置权限
             mkdir -p /data/langrissar/logs
+            chmod 777 /data/langrissar/logs
             
             # Deploy application
             docker pull crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest
             docker stop langrissar-server || true
             docker rm langrissar-server || true
             
-            # Start application
+            # Start application with proper permissions
             docker run -d -p 3000:3000 \
               --network host \
               -e DB_HOST=127.0.0.1 \

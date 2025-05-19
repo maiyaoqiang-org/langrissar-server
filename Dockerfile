@@ -18,7 +18,8 @@ WORKDIR /app
 
 # 创建日志目录并设置权限
 RUN mkdir -p /app/logs && \
-    chown -R node:node /app/logs
+    chown -R node:node /app/logs && \
+    chmod 755 /app/logs
 
 # Copy package files
 COPY package*.json ./
@@ -29,8 +30,9 @@ RUN npm install
 # Copy source code
 COPY . .
 
-# 确保日志目录的权限
-RUN chown -R node:node /app
+# 确保所有文件的权限
+RUN chown -R node:node /app && \
+    chmod -R 755 /app/logs
 
 # 切换到非 root 用户
 USER node
