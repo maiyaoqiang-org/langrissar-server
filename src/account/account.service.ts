@@ -67,7 +67,7 @@ export class AccountService {
     try {
       const usedCdkeys = await this.usedCdkeyRepository.find();
       usedCdkeys.forEach((item) => this.usedCdkeys.add(item.cdkey));
-      this.logger.info(`已从数据库加载 ${usedCdkeys.length} 个已使用的CDKey`);
+      this.logger.info(`已从数据库加载 ${usedCdkeys.length} 个已使用的CDKey-哈哈`);
     } catch (error) {
       this.logger.error("加载已使用CDKey失败", error);
     }
