@@ -14,7 +14,6 @@
     "rootDir": "./",
     "baseUrl": "./",
     "skipLibCheck": true,
-    "incremental": true,
-    "esModuleInterop": true
+    "incremental": true
   }
 }

@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import dayjs from 'dayjs';
+import * as dayjs from 'dayjs';
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity('account')

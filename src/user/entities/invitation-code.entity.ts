@@ -1,7 +1,7 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { User } from './user.entity';
-import dayjs from 'dayjs';
+import * as dayjs from 'dayjs';
 import { Transform } from 'class-transformer';
 
 @Entity()
