@@ -28,12 +28,11 @@ docker run -d \
   -v /data/langrissar/logs:/srv/logs:ro \
   -v /data/langrissar/goaccess:/srv/report:rw \
   allinurl/goaccess \
-  --log-format='%dT%t.%^ %^: %m %U' \
+  --log-format=JSON \
   --date-format='%Y-%m-%d' \
   --time-format='%H:%M:%S' \
   --real-time-html \
   --port=7890 \
   --log-file=/srv/logs/app-2025-05-19.log \
   --output=/srv/report/report.html \
-  --no-global-config \
-  --no-ip-validation
+  --no-global-config

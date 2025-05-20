@@ -298,7 +298,6 @@ export class AccountService {
             success: true,
             response: response.data,
           });
-          this.logger.info(response.data)
         } catch (error) {
           results.push({
             username: account.username,

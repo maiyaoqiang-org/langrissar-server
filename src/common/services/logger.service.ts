@@ -1,7 +1,6 @@
 import * as winston from 'winston';
-import Transport from 'winston-transport';
+import 'winston-daily-rotate-file';
 
-// 先创建一个简单的控制台日志记录器
 export class LoggerService {
   private static instance: winston.Logger;
 
@@ -18,28 +17,25 @@ export class LoggerService {
           // 控制台输出
           new winston.transports.Console({
             format: winston.format.simple(),
+          }),
+          // 普通日志文件输出
+          new winston.transports.DailyRotateFile({
+            filename: 'logs/app-%DATE%.log',
+            datePattern: 'YYYY-MM-DD',
+            maxFiles: '7d',
+            maxSize: '20m',
+            zippedArchive: true,
+          }),
+          // 错误日志单独记录
+          new winston.transports.DailyRotateFile({
+            filename: 'logs/error-%DATE%.log',
+            datePattern: 'YYYY-MM-DD',
+            maxFiles: '7d',
+            maxSize: '20m',
+            level: 'error',
+            zippedArchive: true,
           })
         ]
-      });
-
-      // 异步加载 Loki transport
-      import('winston-loki').then((LokiModule) => {
-        const LokiTransport = LokiModule.default;
-        LoggerService.instance.add(
-          new LokiTransport({
-            host: process.env.LOKI_HOST || 'http://localhost:3100',
-            labels: { 
-              app: 'langrissar-server',
-              environment: process.env.NODE_ENV || 'development'
-            },
-            json: true,
-            format: winston.format.json(),
-            replaceTimestamp: true,
-            onConnectionError: (err) => console.error(err)
-          })
-        );
-      }).catch((err) => {
-        console.error('加载 Loki transport 失败:', err);
       });
     }
     return LoggerService.instance;
