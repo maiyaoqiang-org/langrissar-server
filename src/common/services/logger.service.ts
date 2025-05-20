@@ -8,7 +8,9 @@ export class LoggerService {
     if (!LoggerService.instance) {
       LoggerService.instance = winston.createLogger({
         format: winston.format.combine(
-          winston.format.timestamp(),
+          winston.format.timestamp({
+            format: 'YYYY-MM-DD HH:mm:ss' // 指定时间格式
+          }),
           winston.format.printf(({ timestamp, level, message }) => {
             return `${timestamp} ${level}: ${message}`;
           })
@@ -16,7 +18,15 @@ export class LoggerService {
         transports: [
           // 控制台输出
           new winston.transports.Console({
-            format: winston.format.simple(),
+            format: winston.format.combine(
+              winston.format.colorize(), // 确保控制台输出也支持颜色
+              winston.format.timestamp({
+                format: 'YYYY-MM-DD HH:mm:ss' // 指定时间格式
+              }),
+              winston.format.printf(({ timestamp, level, message }) => {
+                return `${timestamp} ${level}: ${message}`;
+              })
+            ),
           }),
           // 普通日志文件输出
           new winston.transports.DailyRotateFile({

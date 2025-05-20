@@ -22,6 +22,9 @@ jobs:
           registry: crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
+      - name: Clean up old images
+        run: |
+          docker images --format "{{.Repository}}:{{.Tag}}" | grep "crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server" | xargs -r docker rmi
 
       - name: Build and Push
         env:
@@ -50,6 +53,9 @@ jobs:
             # 创建日志目录并设置权限
             mkdir -p /data/langrissar/logs
             chmod 777 /data/langrissar/logs
+
+            # 清理未使用的同名镜像
+            docker images --format "{{.Repository}}:{{.Tag}}" | grep "crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server" | xargs -r docker rmi
             
             # Deploy application
             docker pull crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest
