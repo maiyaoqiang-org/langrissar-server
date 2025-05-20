@@ -9,7 +9,7 @@ import { BypassTransformInterceptor } from 'src/common/decorators/bypass-transfo
 export class OpenAIController {
   constructor(private readonly openaiService: OpenAIService) {}
 
-  @BypassTransformInterceptor()
+  // @BypassTransformInterceptor()
   @Post('chat')
   @ApiOperation({ summary: 'OpenAI 聊天接口' })
   @ApiResponse({ status: 200, description: '成功' })
