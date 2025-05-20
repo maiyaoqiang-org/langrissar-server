@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
-import { LoggerService } from '../../common/services/logger.service';
+import { LoggerService } from '../common/services/logger.service';
 
 @Injectable()
 export class OpenAIService {
@@ -28,6 +28,15 @@ export class OpenAIService {
 
       this.logger.info('OpenAI API 调用成功', { response: completion.choices[0].message });
       return { replyContent: completion.choices[0].message.content };
+    } catch (error) {
+      this.logger.error('OpenAI API 调用失败', { error });
+      throw new Error(`OpenAI API 调用失败: ${error.message}`);
+    }
+  }
+
+  async test(content: string) {
+    try {
+      return { replyContent: `老子为什么要${content}` };
     } catch (error) {
       this.logger.error('OpenAI API 调用失败', { error });
       throw new Error(`OpenAI API 调用失败: ${error.message}`);
