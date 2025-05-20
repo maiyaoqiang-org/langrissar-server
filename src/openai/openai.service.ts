@@ -104,9 +104,7 @@ export class OpenAIService {
       });
       this.logger.info(
         "OpenAI API 调用成功" +
-          {
-            response: completion.choices[0].message,
-          }.toString()
+          JSON.stringify(completion)
       );
 
       // 更新聊天记录（success状态）
