@@ -1,6 +1,8 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Openai } from './openai.entity';
 import { User } from '../../user/entities/user.entity'; // 假设User实体路径
+import * as dayjs from 'dayjs';
+import { Transform } from 'class-transformer';
 
 @Entity('chat_record')
 export class ChatRecord {
@@ -34,8 +36,10 @@ export class ChatRecord {
   errorMessage: string | null; // 错误信息也可能为null，建议同样更改类型
 
   @CreateDateColumn({ type: 'timestamp' })
+  @Transform(({ value }) => dayjs(value).format('YYYY-MM-DD HH:mm:ss'), { toPlainOnly: true })
   createdAt: Date;
 
   @UpdateDateColumn({ type: 'timestamp' })
+  @Transform(({ value }) => dayjs(value).format('YYYY-MM-DD HH:mm:ss'), { toPlainOnly: true })
   updatedAt: Date;
 }
