@@ -9,8 +9,8 @@ import axios from "axios";
 import * as querystring from "querystring";
 import { CreateAccountDto, UpdateAccountDto } from "./dto/account.dto";
 import { QueryAccountDto } from "./dto/query-account.dto";
-import { CronJob } from 'cron';
-import { LoggerService } from '../common/services/logger.service';
+import { CronJob } from "cron";
+import { LoggerService } from "../common/services/logger.service";
 
 export interface ResultItem {
   username: string;
@@ -37,28 +37,52 @@ export class AccountService {
   }
 
   private initCronJobs() {
-    const timezone = 'Asia/Shanghai';
+    const timezone = "Asia/Shanghai";
 
     if (process.env.NODE_ENV !== "development") {
       // 每天早上9点和晚上22点执行获取CDKey
-      new CronJob('0 0 9,22 * * *', () => {
-        this.autoGetAndUseCdkey();
-      }, null, true, timezone);
+      new CronJob(
+        "0 0 9,22 * * *",
+        () => {
+          this.autoGetAndUseCdkey();
+        },
+        null,
+        true,
+        timezone
+      );
 
       // 每天凌晨0点01分执行获取每日福利
-      new CronJob('1 0 0 * * *', () => {
-        this.getPredayReward();
-      }, null, true, timezone);
+      new CronJob(
+        "1 0 0 * * *",
+        () => {
+          this.getPredayReward();
+        },
+        null,
+        true,
+        timezone
+      );
 
-      // 每周二凌晨0点01分执行获取雪莉福利
-      new CronJob('2 0 0 * * 2', () => {
-        this.getWeeklyReward();
-      }, null, true, timezone);
+      // 每周二早上9点执行获取雪莉福利
+      new CronJob(
+        "0 0 9 * * 2",
+        () => {
+          this.getWeeklyReward();
+        },
+        null,
+        true,
+        timezone
+      );
 
       // 每月8-14号凌晨0点05分执行获取每月福利
-      new CronJob('5 0 0 8-14 * *', () => {
-        this.getMonthlyReward();
-      }, null, true, timezone);
+      new CronJob(
+        "5 0 0 8-14 * *",
+        () => {
+          this.getMonthlyReward();
+        },
+        null,
+        true,
+        timezone
+      );
     }
   }
 
@@ -130,6 +154,13 @@ export class AccountService {
           })
           .join("\n");
 
+      this.logger.info(
+        JSON.stringify({
+          message: "每日福利领取结果",
+          results,
+        })
+      );
+
       // 发送飞书通知
       await this.feishuService.sendMessage(message);
 
@@ -191,6 +222,13 @@ export class AccountService {
             return `${r.username}: ${status} (code: ${code}, 奖励: ${rewardName})`;
           })
           .join("\n");
+
+      this.logger.info(
+        JSON.stringify({
+          message: "每周二雪莉福利领取结果",
+          results,
+        })
+      );
 
       // 发送飞书通知
       await this.feishuService.sendMessage(message);
@@ -254,6 +292,13 @@ export class AccountService {
             return `${r.username}: ${status} (code: ${code})`;
           })
           .join("\n");
+
+      this.logger.info(
+        JSON.stringify({
+          message: "每月8号福利领取结果",
+          results,
+        })
+      );
 
       // 发送飞书通知
       await this.feishuService.sendMessage(message);
@@ -327,6 +372,13 @@ export class AccountService {
           })
           .join("\n");
 
+      this.logger.info(
+        JSON.stringify({
+          message: `CDKey(${cdkey})领取结果`,
+          results,
+        })
+      );
+
       // 发送飞书通知
       await this.feishuService.sendMessage(message);
 
@@ -342,7 +394,7 @@ export class AccountService {
       throw error;
     }
   }
-  
+
   async autoGetAndUseCdkey(): Promise<string[]> {
     try {
       // 直接调用 scraperService
@@ -449,9 +501,7 @@ export class AccountService {
     await this.accountRepository.delete(id);
   }
 
-  async findAllPaginated(
-    queryDto: QueryAccountDto
-  ): Promise<{
+  async findAllPaginated(queryDto: QueryAccountDto): Promise<{
     items: Account[];
     total: number;
     page: number;
