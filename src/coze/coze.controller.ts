@@ -7,6 +7,8 @@ import { QueryCozeDto } from './dto/query-coze.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { ChatRequestDto } from './dto/chat.dto';
+import { BypassTransformInterceptor } from 'src/common/decorators/bypass-transform.decorator';
 
 @ApiTags('Coze管理')
 @Controller('coze')
@@ -51,5 +53,13 @@ export class CozeController {
   @ApiResponse({ status: 200, description: '删除成功' })
   remove(@Param('id') id: string) {
     return this.cozeService.remove(+id);
+  }
+
+  @BypassTransformInterceptor()
+  @Post('chat')
+  @ApiOperation({ summary: 'OpenAI 聊天接口' })
+  @ApiResponse({ status: 200, description: '成功' })
+  async chat(@Body() chatRequest: ChatRequestDto) {
+    return await this.cozeService.chat(chatRequest.content);
   }
 }

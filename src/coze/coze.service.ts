@@ -6,15 +6,24 @@ import { User } from '../user/entities/user.entity';
 import { CreateCozeDto } from './dto/create-coze.dto';
 import { UpdateCozeDto } from './dto/update-coze.dto';
 import { QueryCozeDto } from './dto/query-coze.dto';
+import OpenAI from 'openai';
+import { LoggerService } from 'src/common/services/logger.service';
 
 @Injectable()
 export class CozeService {
+  private openai: OpenAI;
+  private readonly logger = LoggerService.getInstance();
   constructor(
     @InjectRepository(Coze)
     private cozeRepository: Repository<Coze>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
-  ) {}
+  ) {
+    this.openai = new OpenAI({
+      apiKey: "pat_cwTGWpIiEJxF1Yx7bXuBA7mCDzj7ovbrfVrmEB4V0LDjYltx3R0LFMFRrl0IGDaR",
+      baseURL: "https://moyuan.zeabur.app/v1"
+    });
+  }
 
   async create(createCozeDto: CreateCozeDto) {
     const coze = this.cozeRepository.create({
@@ -112,5 +121,25 @@ export class CozeService {
       throw new BadRequestException('Coze不存在');
     }
     return this.cozeRepository.softRemove(coze);
+  }
+
+
+  async chat(content: string) {
+    try {
+      this.logger.info('OpenAI API 调用开始', { content });
+      
+      const completion = await this.openai.chat.completions.create({
+        messages: [{ role: "user", content }],
+        model: "mengzhan",
+        // temperature: 0.7,
+        // max_tokens: 1000,
+      });
+
+      this.logger.info('OpenAI API 调用成功', { response: completion.choices[0].message });
+      return { replyContent: completion.choices[0].message.content };
+    } catch (error) {
+      this.logger.error('OpenAI API 调用失败', { error });
+      throw new Error(`OpenAI API 调用失败: ${error.message}`);
+    }
   }
 }
