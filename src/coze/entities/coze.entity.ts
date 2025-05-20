@@ -1,6 +1,6 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, ManyToMany, JoinTable } from 'typeorm';
 import { Transform } from 'class-transformer';
-import * as dayjs from 'dayjs';
+import dayjs from 'dayjs';
 import { User } from '../../user/entities/user.entity';
 
 @Entity('coze')
