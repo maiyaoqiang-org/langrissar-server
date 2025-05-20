@@ -10,6 +10,10 @@ import { UpdateOpenaiDto } from "./dto/update-openai.dto";
 import { QueryOpenaiDto } from "./dto/query-openai.dto";
 import { User } from "src/user/entities/user.entity";
 import { ChatRecord } from "./entities/chat-record.entity";
+import { QueryChatRecordDto } from "./dto/query-chat-record.dto";
+import * as ExcelJS from 'exceljs'; // 导入 exceljs
+import * as fs from 'fs'; // 导入 fs 模块
+import * as path from 'path'; // 导入 path 模块
 
 @Injectable()
 export class OpenAIService {
@@ -19,7 +23,7 @@ export class OpenAIService {
   constructor(
     @InjectRepository(Openai)
     private openaiRepository: Repository<Openai>,
-    @InjectRepository(ChatRecord) // 注入 ChatRecordRepository
+    @InjectRepository(ChatRecord)
     private chatRecordRepository: Repository<ChatRecord>
   ) {
     this.openai = new OpenAI({
@@ -197,5 +201,138 @@ export class OpenAIService {
       throw new BadRequestException("OpenAI配置不存在");
     }
     return this.openaiRepository.softRemove(openai);
+  }
+
+  /**
+   * 分页查询聊天记录
+   * @param queryDto 查询参数
+   * @returns 聊天记录列表和总数
+   */
+  async findChatRecords(queryDto: QueryChatRecordDto) {
+    const query = this.chatRecordRepository
+      .createQueryBuilder("chatRecord")
+      .leftJoinAndSelect("chatRecord.openaiConfig", "openaiConfig") // 如果需要关联查询配置信息
+      .leftJoinAndSelect("chatRecord.user", "user") // 如果需要关联查询用户信息
+      .orderBy("chatRecord.createdAt", "DESC");
+
+    // 添加过滤条件
+    if (queryDto.requestContent) {
+      query.andWhere("chatRecord.requestContent LIKE :requestContent", {
+        requestContent: `%${queryDto.requestContent}%`,
+      });
+    }
+    if (queryDto.responseContent) {
+      query.andWhere("chatRecord.responseContent LIKE :responseContent", {
+        responseContent: `%${queryDto.responseContent}%`,
+      });
+    }
+    if (queryDto.status) {
+      query.andWhere("chatRecord.status = :status", { status: queryDto.status });
+    }
+    if (queryDto.openaiConfigId) {
+      query.andWhere("chatRecord.openaiConfigId = :openaiConfigId", {
+        openaiConfigId: queryDto.openaiConfigId,
+      });
+    }
+    if (queryDto.userId) {
+      query.andWhere("chatRecord.userId = :userId", { userId: queryDto.userId });
+    }
+
+    const page = Number(queryDto.page) || 1;
+    const pageSize = Number(queryDto.pageSize) || 10;
+    const [items, total] = await query
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
+      .getManyAndCount();
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
+  /**
+   * 导出聊天记录到Excel
+   * @param queryDto 包含导出日期和过滤条件的查询参数
+   * @returns Excel 文件 Buffer
+   */
+  async exportChatRecords(queryDto: QueryChatRecordDto & { exportDate: string }): Promise<Buffer> {
+    const { exportDate, ...filterParams } = queryDto;
+
+    // 构建日期范围查询条件
+    const startDate = new Date(exportDate);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(exportDate);
+    endDate.setHours(23, 59, 59, 999);
+
+    const query = this.chatRecordRepository
+      .createQueryBuilder("chatRecord")
+      .leftJoinAndSelect("chatRecord.openaiConfig", "openaiConfig")
+      .leftJoinAndSelect("chatRecord.user", "user")
+      .where("chatRecord.createdAt BETWEEN :startDate AND :endDate", { startDate, endDate }) // 按日期过滤
+      .orderBy("chatRecord.createdAt", "ASC"); // 按时间正序排列
+
+    // 添加其他过滤条件 (与 findChatRecords 类似)
+    if (filterParams.requestContent) {
+      query.andWhere("chatRecord.requestContent LIKE :requestContent", {
+        requestContent: `%${filterParams.requestContent}%`,
+      });
+    }
+    if (filterParams.responseContent) {
+      query.andWhere("chatRecord.responseContent LIKE :responseContent", {
+        responseContent: `%${filterParams.responseContent}%`,
+      });
+    }
+    if (filterParams.status) {
+      query.andWhere("chatRecord.status = :status", { status: filterParams.status });
+    }
+    if (filterParams.openaiConfigId) {
+      query.andWhere("chatRecord.openaiConfigId = :openaiConfigId", {
+        openaiConfigId: filterParams.openaiConfigId,
+      });
+    }
+    if (filterParams.userId) {
+      query.andWhere("chatRecord.userId = :userId", { userId: filterParams.userId });
+    }
+
+
+    const records = await query.getMany();
+
+    // 创建 Excel 工作簿和工作表
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('聊天记录');
+
+    // 定义列
+    worksheet.columns = [
+      { header: 'ID', key: 'id', width: 10 },
+      { header: '模型', key: 'model', width: 20 },
+      { header: '请求内容', key: 'requestContent', width: 50 },
+      { header: '响应内容', key: 'responseContent', width: 50 },
+      { header: '状态', key: 'status', width: 15 },
+      { header: '错误信息', key: 'errorMessage', width: 30 },
+      { header: '创建时间', key: 'createdAt', width: 20 },
+      // { header: '用户', key: 'username', width: 15 }, // 如果关联了用户
+    ];
+
+    // 添加数据行
+    records.forEach(record => {
+      worksheet.addRow({
+        id: record.id,
+        model: record.openaiConfig?.model || 'N/A', // 如果关联了配置
+        requestContent: record.requestContent,
+        responseContent: record.responseContent,
+        status: record.status,
+        errorMessage: record.errorMessage,
+        createdAt: record.createdAt.toISOString(), // 或者根据需要格式化日期
+        // username: record.user?.username || 'N/A', // 如果关联了用户
+      });
+    });
+
+    // 生成 Buffer
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as Buffer;
   }
 }

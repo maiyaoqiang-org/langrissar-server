@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Get, Param, Put, Delete, Request } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Param, Put, Delete, Request, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { OpenAIService } from './openai.service';
 import { ChatRequestDto, ChatResponseDto } from './dto/chat.dto';
@@ -10,6 +10,9 @@ import { CreateOpenaiDto } from './dto/create-openai.dto';
 import { QueryOpenaiDto } from './dto/query-openai.dto';
 import { UpdateOpenaiDto } from './dto/update-openai.dto';
 import { Public } from 'src/auth/public.decorator';
+import { Response } from 'express'; // 导入 Response 类型
+import { QueryChatRecordDto } from './dto/query-chat-record.dto'; // 导入查询 DTO
+import { ApiBody } from '@nestjs/swagger'; // 导入 ApiBody
 
 @Controller('openai')
 @ApiTags('OpenAI配置管理')
@@ -86,5 +89,31 @@ export class OpenAIController {
   ) {
     // 调用Service中根据ID进行聊天的逻辑
     return await this.openaiService.chatWithConfig(+id, chatRequest.content);
+  }
+
+  @Post('chat-records/query') // 分页查询聊天记录接口
+  @Roles('admin')
+  @ApiOperation({ summary: '分页查询OpenAI聊天记录' })
+  @ApiResponse({ status: 200, description: '查询成功' })
+  async queryChatRecords(@Body() queryDto: QueryChatRecordDto) {
+    return await this.openaiService.findChatRecords(queryDto);
+  }
+
+  @Post('chat-records/export') // 新增导出聊天记录接口
+  @Roles('admin') // 通常只有管理员才能导出
+  @ApiOperation({ summary: '导出OpenAI聊天记录到Excel' })
+  @ApiResponse({ status: 200, description: '导出成功', type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  @ApiBody({ type: QueryChatRecordDto, description: '导出过滤条件，包含 exportDate' }) // 使用 QueryChatRecordDto 作为请求体类型
+  async exportChatRecords(
+    @Body() queryDto: QueryChatRecordDto & { exportDate: string }, // 接收包含 exportDate 的查询参数
+    @Res() res: Response // 注入 Response 对象用于文件下载
+  ) {
+    // 调用 Service 中的导出方法
+    const excelBuffer = await this.openaiService.exportChatRecords(queryDto);
+
+    // 设置响应头，触发文件下载
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=chat_records_${queryDto.exportDate}.xlsx`);
+    res.send(excelBuffer);
   }
 }
