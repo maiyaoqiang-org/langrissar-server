@@ -35,31 +35,6 @@ export class LoggingInterceptor implements NestInterceptor {
 
     this.logger.info(`[请求开始] ${method} ${url}`, logInfo);
 
-    return next.handle().pipe(
-      tap({
-        next: (data) => {
-          const duration = Date.now() - startTime;
-          this.logger.info(`[请求完成] ${method} ${url}`, {
-            ...logInfo,
-            duration,
-            status: 'success',
-            responseData: data,
-          });
-        },
-        error: (error) => {
-          const duration = Date.now() - startTime;
-          this.logger.error(`[请求失败] ${method} ${url}`, {
-            ...logInfo,
-            duration,
-            status: 'error',
-            error: {
-              message: error.message,
-              stack: error.stack,
-              code: error.code || error.status,
-            },
-          });
-        },
-      })
-    );
+    return next.handle()
   }
 }
