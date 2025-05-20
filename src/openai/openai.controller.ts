@@ -16,4 +16,12 @@ export class OpenAIController {
   async chat(@Body() chatRequest: ChatRequestDto) {
     return await this.openaiService.chat(chatRequest.content);
   }
+
+  @BypassTransformInterceptor()
+  @Post('chat-test')
+  @ApiOperation({ summary: 'OpenAI 聊天接口' })
+  @ApiResponse({ status: 200, description: '成功' })
+  async test(@Body() chatRequest: ChatRequestDto) {
+    return await this.openaiService.test(chatRequest.content);
+  }
 }
