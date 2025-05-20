@@ -25,7 +25,7 @@ export class LoggingInterceptor implements NestInterceptor {
       logInfo.targetUrl = request.headers['x-target-url'];
     }
 
-    this.logger.info(`[请求开始] ${method} ${url}`, logInfo);
+    this.logger.info(`[请求开始] ${method} ${url} ${JSON.stringify(logInfo)}`);
 
     return next.handle()
   }

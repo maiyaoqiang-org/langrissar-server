@@ -47,4 +47,4 @@ EXPOSE 3000
 VOLUME ["/app/logs"]
 
 # Run migrations and start application
-CMD ["sh", "-c", "npm run migration:run && node dist/src/main.js"]
+CMD ["sh", "-c", "node dist/src/main.js"]
