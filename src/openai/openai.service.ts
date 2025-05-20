@@ -33,11 +33,10 @@ export class OpenAIService {
     // 创建聊天记录（pending状态）
     const chatRecord = this.chatRecordRepository.create({
       requestContent: content,
-      status: 'pending',
+      status: "pending",
       // 如果需要记录用户ID，可以在这里添加 user: req.user 或 userId: req.user.id
     });
     await this.chatRecordRepository.save(chatRecord);
-
 
     try {
       this.logger.info("OpenAI API 调用开始", { content });
@@ -56,7 +55,7 @@ export class OpenAIService {
     } catch (error) {
       this.logger.error("OpenAI API 调用失败", { error });
 
-      chatRecord.status = 'failed';
+      chatRecord.status = "failed";
       chatRecord.errorMessage = error.message;
       await this.chatRecordRepository.save(chatRecord);
 
@@ -82,7 +81,7 @@ export class OpenAIService {
     const chatRecord = this.chatRecordRepository.create({
       openaiConfigId: config.id, // 记录使用的配置ID
       requestContent: content,
-      status: 'pending',
+      status: "pending",
       // 如果需要记录用户ID，可以在这里添加 user: req.user 或 userId: req.user.id
     });
     await this.chatRecordRepository.save(chatRecord);
@@ -99,12 +98,27 @@ export class OpenAIService {
         messages: [{ role: "user", content }],
         model: config.model,
       });
-      this.logger.info("OpenAI API 调用成功"+{
-        response: completion.choices[0].message,
-      }.toString());
+      this.logger.info(
+        "OpenAI API 调用成功" +
+          {
+            response: completion.choices[0].message,
+          }.toString()
+      );
+
+      // 更新聊天记录（success状态）
+      chatRecord.responseContent = completion.choices[0].message.content;
+      chatRecord.status = "success";
+      await this.chatRecordRepository.save(chatRecord);
+
       return { replyContent: completion.choices[0].message.content };
     } catch (error) {
-      console.error(`调用OpenAI Chat API失败 (ID: ${id}):`, error);
+      this.logger.error("OpenAI API 调用失败" + error.toString());
+
+      // 更新聊天记录（failed状态）
+      chatRecord.status = "failed";
+      chatRecord.errorMessage = error.message;
+      await this.chatRecordRepository.save(chatRecord);
+
       throw new Error(`调用OpenAI Chat API失败: ${error.message}`);
     }
   }
