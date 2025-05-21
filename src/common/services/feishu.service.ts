@@ -15,9 +15,9 @@ export class FeishuService {
         }
       });
 
-      this.logger.info(`发送飞书消息成功:${res.data}`);
+      this.logger.info(`发送飞书消息成功:${JSON.stringify(res.data)}`);
     } catch (error) {
-      console.error('发送飞书消息失败:', error);
+      this.logger.error(`发送飞书消息失败: ${error.message}`);
       throw error;
     }
   }
