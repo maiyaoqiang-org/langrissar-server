@@ -384,10 +384,8 @@ export class AccountService {
       await this.feishuService.sendMessage(message);
 
       // 如果有成功的领取，则保存 CDKey 到缓存和数据库
-      if (successCount > 0) {
-        await this.usedCdkeyRepository.save({ cdkey });
-        this.usedCdkeys.add(cdkey);
-      }
+      await this.usedCdkeyRepository.save({ cdkey });
+      this.usedCdkeys.add(cdkey);
 
       return results;
     } catch (error) {
