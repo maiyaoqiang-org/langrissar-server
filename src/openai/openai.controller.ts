@@ -116,4 +116,12 @@ export class OpenAIController {
     res.setHeader('Content-Disposition', `attachment; filename=chat_records_${queryDto.exportDate}.xlsx`);
     res.send(excelBuffer);
   }
+
+  @Delete('chat-records/:id') // 删除聊天记录接口
+  @Roles('admin')
+  @ApiOperation({ summary: '删除OpenAI聊天记录' })
+  @ApiResponse({ status: 200, description: '删除成功' })
+  async deleteChatRecord(@Param('id') id: string) {
+    return await this.openaiService.removeChatRecord(+id);
+  }
 }

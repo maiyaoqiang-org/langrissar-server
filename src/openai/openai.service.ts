@@ -333,4 +333,17 @@ export class OpenAIService {
     const buffer = await workbook.xlsx.writeBuffer();
     return buffer as Buffer;
   }
+
+  /**
+   * 删除聊天记录
+   * @param id 聊天记录ID
+   * @returns 删除结果
+   */
+  async removeChatRecord(id: number) {
+    const chatRecord = await this.chatRecordRepository.findOne({ where: { id } });
+    if (!chatRecord) {
+      throw new BadRequestException("聊天记录不存在");
+    }
+    return this.chatRecordRepository.remove(chatRecord);
+  }
 }
