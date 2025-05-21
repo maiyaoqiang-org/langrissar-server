@@ -354,7 +354,7 @@ export class AccountService {
 
       // 整理消息内容
       const successCount = results.filter(
-        (r) => r.response?.data?.success
+        (r) => r.response?.data?.mailTitle
       ).length;
       const failCount = results.length - successCount;
 
@@ -366,9 +366,10 @@ export class AccountService {
         `详细信息：\n` +
         results
           .map((r) => {
-            const status = r.response?.data?.success ? "成功" : "失败";
-            const code = r.response?.data?.code || "未知";
-            return `${r.username}: ${status} (code: ${code})`;
+            const mailTitle = r.response?.data?.mailTitle ? "成功" : "失败";
+            const giftGoodsMap = r.response?.data?.giftGoodsMap || {};
+            const status = r.response?.status
+            return `${r.username}: 【status:${status}】 ${mailTitle} ${JSON.stringify(giftGoodsMap)}`;
           })
           .join("\n");
 
