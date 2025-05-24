@@ -65,6 +65,7 @@ jobs:
             # Start application with proper permissions
             docker run -d -p 3000:3000 \
               --network host \
+              --restart unless-stopped \
               -e DB_HOST=127.0.0.1 \
               -e DB_PORT=3306 \
               -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
