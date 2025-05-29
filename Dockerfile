@@ -41,7 +41,7 @@ USER node
 RUN npm run build
 
 # Expose port
-EXPOSE 6088
+EXPOSE 3000
 
 # 创建日志目录的数据卷
 VOLUME ["/app/logs"]

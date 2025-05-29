@@ -78,10 +78,9 @@ jobs:
             docker rm langrissar-server-$NEW_CONTAINER || true
             
             # 启动新容器（将宿主机6088端口映射到容器内部3000端口）
-            docker run -d -p 6088:6088 \
-              --network host
+            docker run -d -p 6088:3000 \
               --restart unless-stopped \
-              -e DB_HOST=127.0.0.1 \
+              -e DB_HOST=host.docker.internal \
               -e DB_PORT=3306 \
               -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
               -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
@@ -102,10 +101,10 @@ jobs:
               docker stop langrissar-server-$CURRENT_CONTAINER || true
               
               # 创建或更新符号链接指向当前活动容器
-              docker rm langrissar-server || true
-              docker rename langrissar-server-$NEW_CONTAINER langrissar-server
+              docker rm langrissar-server-test || true
+              docker rename langrissar-server-$NEW_CONTAINER langrissar-server-test
               
-              echo "部署完成，当前活动容器: langrissar-server (原 $NEW_CONTAINER)"
+              echo "部署完成，当前活动容器: langrissar-server-test (原 $NEW_CONTAINER)"
             else
               echo "新容器启动失败，保持旧容器运行"
             fi
