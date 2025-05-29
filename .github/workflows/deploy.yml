@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-
+      - test
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -57,14 +57,28 @@ jobs:
             # 清理未使用的同名镜像
             docker images --format "{{.Repository}}:{{.Tag}}" | grep "crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server" | xargs -r docker rmi
             
-            # Deploy application
+            # 拉取最新镜像
             docker pull crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest
-            docker stop langrissar-server || true
-            docker rm langrissar-server || true
             
-            # Start application with proper permissions
-            docker run -d -p 3000:3000 \
-              --network host \
+            # 确定当前运行的容器（蓝或绿）
+            CURRENT_CONTAINER=""
+            if docker ps -q -f name=langrissar-server-blue | grep -q .; then
+              CURRENT_CONTAINER="blue"
+              NEW_CONTAINER="green"
+            else
+              CURRENT_CONTAINER="green"
+              NEW_CONTAINER="blue"
+            fi
+            
+            echo "当前运行的容器是: langrissar-server-$CURRENT_CONTAINER"
+            echo "将部署到新容器: langrissar-server-$NEW_CONTAINER"
+            
+            # 启动新容器
+            docker stop langrissar-server-$NEW_CONTAINER || true
+            docker rm langrissar-server-$NEW_CONTAINER || true
+            
+            # 启动新容器（将宿主机6088端口映射到容器内部3000端口）
+            docker run -d -p 6088:3000 \
               --restart unless-stopped \
               -e DB_HOST=127.0.0.1 \
               -e DB_PORT=3306 \
@@ -73,5 +87,24 @@ jobs:
               -e DB_DATABASE=${{ secrets.DB_DATABASE }} \
               -e NODE_ENV=production \
               -v /data/langrissar/logs:/app/logs \
-              --name langrissar-server \
+              --name langrissar-server-$NEW_CONTAINER \
               crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest
+            
+            # 等待新容器启动并健康检查
+            echo "等待新容器启动..."
+            sleep 30
+            
+            # 检查新容器是否正常运行
+            if docker ps -q -f name=langrissar-server-$NEW_CONTAINER | grep -q .; then
+              echo "新容器已成功启动，停止旧容器"
+              # 停止旧容器
+              docker stop langrissar-server-$CURRENT_CONTAINER || true
+              
+              # 创建或更新符号链接指向当前活动容器
+              docker rm langrissar-server || true
+              docker rename langrissar-server-$NEW_CONTAINER langrissar-server
+              
+              echo "部署完成，当前活动容器: langrissar-server (原 $NEW_CONTAINER)"
+            else
+              echo "新容器启动失败，保持旧容器运行"
+            fi
