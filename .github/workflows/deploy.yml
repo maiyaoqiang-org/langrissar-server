@@ -60,25 +60,38 @@ jobs:
             # 拉取最新镜像
             docker pull crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest
             
-            # 确定当前运行的容器（蓝或绿）
-            CURRENT_CONTAINER=""
+           
+            
+            # 确定当前运行的容器和端口，以及新容器的端口
+            BLUE_PORT=6088
+            GREEN_PORT=6089
+            CURRENT_COLOR=""
+            NEW_COLOR=""
+            NEW_PORT=0
+            
+            # 检查哪个端口正在被Nginx使用 (这部分逻辑需要根据您的Nginx配置来确定)
+            # 简单示例：假设我们通过检查哪个容器在运行来判断
             if docker ps -q -f name=langrissar-server-blue | grep -q .; then
-              CURRENT_CONTAINER="blue"
-              NEW_CONTAINER="green"
+              CURRENT_COLOR="blue"
+              NEW_COLOR="green"
+              NEW_PORT=$GREEN_PORT
+              CURRENT_PORT=$BLUE_PORT
             else
-              CURRENT_CONTAINER="green"
-              NEW_CONTAINER="blue"
+              CURRENT_COLOR="green"
+              NEW_COLOR="blue"
+              NEW_PORT=$BLUE_PORT
+              CURRENT_PORT=$GREEN_PORT
             fi
             
-            echo "当前运行的容器是: langrissar-server-$CURRENT_CONTAINER"
-            echo "将部署到新容器: langrissar-server-$NEW_CONTAINER"
+            echo "当前活动的颜色: $CURRENT_COLOR (端口: $CURRENT_PORT)"
+            echo "将部署新的颜色: $NEW_COLOR (端口: $NEW_PORT)"
             
-            # 启动新容器
-            docker stop langrissar-server-$NEW_CONTAINER || true
-            docker rm langrissar-server-$NEW_CONTAINER || true
+            # 停止并移除可能存在的旧的NEW_COLOR容器
+            docker stop langrissar-server-$NEW_COLOR || true
+            docker rm langrissar-server-$NEW_COLOR || true
             
-            # 启动新容器（将宿主机6088端口映射到容器内部3000端口）
-            docker run -d -p 6088:3000 \
+            # 启动新容器，监听新的端口
+            docker run -d -p $NEW_PORT:3000 \
               --restart unless-stopped \
               -e DB_HOST=172.17.0.1 \
               -e DB_PORT=3306 \
@@ -87,24 +100,61 @@ jobs:
               -e DB_DATABASE=${{ secrets.DB_DATABASE }} \
               -e NODE_ENV=production \
               -v /data/langrissar/logs:/app/logs \
-              --name langrissar-server-$NEW_CONTAINER \
+              --name langrissar-server-$NEW_COLOR \
               crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest
             
             # 等待新容器启动并健康检查
-            echo "等待新容器启动..."
-            sleep 30
+            echo "等待新容器 langrissar-server-$NEW_COLOR (端口 $NEW_PORT) 启动并进行健康检查..."
+            HEALTH_CHECK_URL="http://127.0.0.1:$NEW_PORT/"
+            MAX_ATTEMPTS=10 # 最多尝试10次
+            RETRY_INTERVAL=6 # 每次尝试间隔6秒 (总共最多等待60秒)
+            ATTEMPT_NUM=0
             
-            # 检查新容器是否正常运行
-            if docker ps -q -f name=langrissar-server-$NEW_CONTAINER | grep -q .; then
-              echo "新容器已成功启动，停止旧容器"
-              # 停止旧容器
-              docker stop langrissar-server-$CURRENT_CONTAINER || true
+            until [ $ATTEMPT_NUM -ge $MAX_ATTEMPTS ]
+            do
+              ATTEMPT_NUM=$((ATTEMPT_NUM+1))
+              echo "健康检查尝试 #${ATTEMPT_NUM}: 正在请求 $HEALTH_CHECK_URL"
+              # 使用 curl 进行健康检查，只关心HTTP状态码，设置连接超时和最大请求时间
+              HTTP_STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" --connect-timeout 5 --max-time 5 $HEALTH_CHECK_URL)
               
-              # 创建或更新符号链接指向当前活动容器
-              docker rm langrissar-server-test || true
-              docker rename langrissar-server-$NEW_CONTAINER langrissar-server-test
+              if [ "$HTTP_STATUS" -eq 200 ]; then
+                echo "健康检查成功，新容器已就绪 (HTTP状态码: $HTTP_STATUS)。"
+                break
+              else
+                echo "健康检查失败 (HTTP状态码: $HTTP_STATUS)。将在 $RETRY_INTERVAL 秒后重试..."
+                if [ $ATTEMPT_NUM -lt $MAX_ATTEMPTS ]; then
+                  sleep $RETRY_INTERVAL
+                else
+                  echo "已达到最大健康检查尝试次数，新容器启动失败。"
+                  break # 跳出循环，后续逻辑会判断容器是否成功启动
+                fi
+              fi
+            done
+            
+            # 检查新容器是否最终被认为是正常运行 (基于健康检查结果)
+            # 我们需要确保HTTP_STATUS是200，并且docker ps也能找到容器
+            if [ "$HTTP_STATUS" -eq 200 ] && docker ps -q -f name=langrissar-server-$NEW_COLOR | grep -q .; then
+              echo "新容器 langrissar-server-$NEW_COLOR 已成功启动并通过健康检查。"
               
-              echo "部署完成，当前活动容器: langrissar-server-test (原 $NEW_CONTAINER)"
+              # 修改Nginx配置指向新容器的端口
+              echo "更新Nginx upstream配置 langrissar_backend 指向端口 $NEW_PORT..."
+              sudo sed -i "s/server 127.0.0.1:[0-9]\{4\};/server 127.0.0.1:$NEW_PORT;/g" /etc/nginx/conf.d/langrissar-upstream.conf
+              
+              # 重新加载Nginx配置
+              echo "重新加载Nginx配置..."
+              sudo nginx -s reload
+              
+              echo "流量已切换到 langrissar-server-$NEW_COLOR"
+              
+              # 停止旧容器 (在流量切换后，可以安全停止)
+              echo "停止旧容器 langrissar-server-$CURRENT_COLOR..."
+              docker stop langrissar-server-$CURRENT_COLOR || true
+              # docker rm langrissar-server-$CURRENT_COLOR || true # 可选：立即删除或保留一段时间
+              
+              echo "部署完成，当前活动容器: langrissar-server-$NEW_COLOR"
             else
-              echo "新容器启动失败，保持旧容器运行"
+              echo "新容器 langrissar-server-$NEW_COLOR 启动失败或未通过健康检查 (最后状态码: $HTTP_STATUS)。保持旧容器 langrissar-server-$CURRENT_COLOR 运行。"
+              # 如果新容器启动失败，清理掉失败的容器
+              docker stop langrissar-server-$NEW_COLOR || true
+              docker rm langrissar-server-$NEW_COLOR || true
             fi
