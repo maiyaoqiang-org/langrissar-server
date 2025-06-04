@@ -3,6 +3,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Exclude, instanceToPlain } from 'class-transformer';
 import * as dayjs from 'dayjs';
 import { Transform } from 'class-transformer';
+import { desensitizePhone } from '@/common/utils/transform';
 
 @Entity()
 export class User {
@@ -12,6 +13,7 @@ export class User {
 
   @ApiProperty({ description: '手机号' })
   @Column({ unique: true })
+  @Transform(desensitizePhone, { toPlainOnly: true })
   phone: string;
 
   @ApiProperty({ description: '密码' })
