@@ -77,6 +77,11 @@ export class AccountController {
   async autoVIPMonthlyReward() {
     return this.accountService.autoGetVipReward(CycleType.Monthly);
   }
+  @Get('auto-vip-sign-reward')
+  @ApiOperation({ summary: '自动领取VIP签到奖励' })
+  async autoVIPSignReward() {
+    return this.accountService.autoGetVipSignReward();
+  }
 
   @Post()
   @Roles('admin')

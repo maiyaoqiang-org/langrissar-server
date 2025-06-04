@@ -216,4 +216,9 @@ export class ZlvipService {
         return res.data;
     }
 
+    async signIn() {
+        const res = await this.request('/web/service', {}, { func: "MS" })
+        return res.data;
+    }
+
 }

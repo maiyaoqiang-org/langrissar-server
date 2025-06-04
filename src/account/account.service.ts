@@ -58,6 +58,7 @@ export class AccountService {
         "1 0 0 * * *",
         () => {
           this.getPredayReward();
+          this.autoGetVipSignReward()
         },
         null,
         true,
@@ -524,6 +525,49 @@ export class AccountService {
       this.logger.error(label + error);
       await this.feishuService.sendMessage(
         `自动获取${label}失败：${error.message}`
+      );
+      throw error;
+    }
+  }
+
+  async autoGetVipSignReward(){
+    try {
+      const accounts = await this.findAll();
+      const getVipAccounts = accounts.filter((account) => account.account && account.password);
+      const results = await Promise.all(getVipAccounts.map(async (account) => {
+        const vip = new ZlvipService()
+        await vip.init(account.account, account.decryptPassword(), ZlvipService.mzAppKey)
+        const res = await vip.signIn()
+
+        return {
+          username: account.username,
+          response: res,
+        };
+      }));
+  
+      this.logger.info(
+        inspect(results, { depth: 4 })
+      );
+
+      // 生成飞书通知消息
+      let message = `紫龙大会员自动签到结果：\n`;
+      results.forEach((result) => {
+        message += `用户名: ${result.username}\n`;
+        message += `  获取结果: ${result.response.msg}\n`;
+        message += `  错误码: ${result.response.code}\n`;
+        message += '\n';
+      });
+
+      
+  
+      // 发送飞书通知
+      await this.feishuService.sendMessage(message);
+  
+      return message;
+    } catch (error) {
+      this.logger.error(error);
+      await this.feishuService.sendMessage(
+        `紫龙大会员自动签到失败：${error.message}`
       );
       throw error;
     }
