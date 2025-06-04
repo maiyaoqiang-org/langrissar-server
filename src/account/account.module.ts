@@ -6,6 +6,7 @@ import { Account } from './entities/account.entity';
 import { UsedCdkey } from './entities/used-cdkey.entity';
 import { FeishuService } from 'src/common/services/feishu.service';
 import { ScraperModule } from 'src/scraper/scraper.module';
+import { ZlvipService } from './zlvip.service';
 
 @Module({
   imports: [

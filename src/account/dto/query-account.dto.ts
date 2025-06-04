@@ -29,4 +29,10 @@ export class QueryAccountDto {
   @ApiProperty({ description: '每页数量', required: false, default: 10 })
   @IsOptional()
   pageSize?: number;
+
+  @ApiProperty({ description: '账号', required: false })
+  @IsOptional()
+  @IsString()
+  account?: string;
+
 }

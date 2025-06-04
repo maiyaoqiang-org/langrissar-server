@@ -12,6 +12,14 @@ export class CreateAccountDto {
 
   @IsString()
   serverid: string;
+
+  @IsOptional()
+  @IsString()
+  account?: string;
+
+  @IsOptional()
+  @IsString()
+  password?: string;
 }
 
 export class UpdateAccountDto {
@@ -30,4 +38,22 @@ export class UpdateAccountDto {
   @IsOptional()
   @IsString()
   serverid?: string;
+
+  @IsOptional()
+  @IsString()
+  account?: string;
+
+  @IsOptional()
+  @IsString()
+  password?: string;
+}
+
+export class QueryAccountDto {
+  @IsOptional()
+  @IsString()
+  account?: string;
+
+  @IsOptional()
+  @IsString()
+  password?: string;
 }

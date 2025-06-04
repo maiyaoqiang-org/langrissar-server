@@ -5,6 +5,7 @@ import { ResultItem } from './account.service';  // 添加这行导入语句
 import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto'; // 假设你有这些 DTO
 import { Roles } from 'src/auth/roles.decorator';
 import { QueryAccountDto } from './dto/query-account.dto';
+import { CycleType, CycleTypeDescription } from './zlvip.service';
 
 @ApiTags('账号管理')
 @Controller('account')
@@ -63,6 +64,18 @@ export class AccountController {
   @ApiResponse({ status: 400, description: '清除失败' })
   async clearUsedCdkeys() {
     return this.accountService.clearUsedCdkeys();
+  }
+
+  @Get('auto-vip-weekly-reward')
+  @ApiOperation({ summary: '自动领取VIP每周奖励' })
+  async autoVIPWeeklyReward() {
+    return this.accountService.autoGetVipReward(CycleType.Weekly);
+  }
+
+  @Get('auto-vip-monthly-reward')
+  @ApiOperation({ summary: '自动领取VIP每月奖励' })
+  async autoVIPMonthlyReward() {
+    return this.accountService.autoGetVipReward(CycleType.Monthly);
   }
 
   @Post()

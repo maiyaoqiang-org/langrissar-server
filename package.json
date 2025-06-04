@@ -4,6 +4,7 @@
   "main": "dist/src/main",
   "scripts": {
     "build": "nest build",
+    "dev": "npm run start:dev",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/src/main.js",
     "typeorm": "typeorm-ts-node-commonjs",
@@ -40,6 +41,7 @@
     "class-validator": "^0.14.1",
     "cron": "^4.3.0",
     "crypto": "^1.0.1",
+    "crypto-js": "^4.2.0",
     "dayjs": "^1.11.13",
     "exceljs": "^4.4.0",
     "mysql2": "^3.14.0",

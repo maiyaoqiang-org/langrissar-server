@@ -11,6 +11,8 @@ import { CreateAccountDto, UpdateAccountDto } from "./dto/account.dto";
 import { QueryAccountDto } from "./dto/query-account.dto";
 import { CronJob } from "cron";
 import { LoggerService } from "../common/services/logger.service";
+import { ZlvipService, CycleType, CycleTypeDescription } from "./zlvip.service"; // 新增：引入 ZlvipService
+import { inspect } from "util";
 
 export interface ResultItem {
   username: string;
@@ -83,6 +85,28 @@ export class AccountService {
         true,
         timezone
       );
+
+      // 每月1号凌晨0点01分执行领取autoGetVipReward
+      new CronJob(
+        "1 0 0 1 * *",
+        () => {
+          this.autoGetVipReward(CycleType.Monthly);
+        },
+        null,
+        true,
+        timezone
+      )
+
+      // 每周一凌晨0点01分执行autoGetVipReward
+      new CronJob(
+        "1 0 0 * * 1",
+        () => {
+          this.autoGetVipReward(CycleType.Weekly);
+        },
+        null,
+        true,
+        timezone
+      )
     }
   }
 
@@ -452,6 +476,59 @@ export class AccountService {
     }
   }
 
+  async getVipReward(cycleType: CycleType, account: Account) {
+
+    const accId = account.account
+    const password = account.decryptPassword()
+    const vip = new ZlvipService()
+    await vip.init(accId, password, ZlvipService.mzAppKey)
+    const res = await vip.autoProjectGift(cycleType, account.roleid, account.serverid)
+    return res
+  }
+
+  async autoGetVipReward(cycleType: CycleType) {
+    const label = `VIP${CycleTypeDescription[cycleType]}奖励`
+    try {
+      const accounts = await this.findAll();
+      const getVipAccounts = accounts.filter((account) => account.account && account.password);
+      const results = await Promise.all(getVipAccounts.map(async (account) => {
+        const res = await this.getVipReward(cycleType, account);
+        return {
+          username: account.username,
+          response: res,
+        };
+      }));
+  
+      // 生成飞书通知消息
+      let message = `自动获取${label}结果：\n`;
+      results.forEach((result) => {
+        message += `用户名: ${result.username}\n`;
+        result.response.forEach((reward) => {
+          message += `  礼包名称: ${reward.name}\n`;
+          message += `  礼包描述: ${reward.description}\n`;
+          message += `  获取结果: ${reward.getResult.msg}\n`;
+          message += `  错误码: ${reward.getResult.code}\n`;
+        });
+        message += '\n';
+      });
+
+      this.logger.info(
+        inspect(results, { depth: 4 })
+      );
+  
+      // 发送飞书通知
+      await this.feishuService.sendMessage(message);
+  
+      return message;
+    } catch (error) {
+      this.logger.error(label + error);
+      await this.feishuService.sendMessage(
+        `自动获取${label}失败：${error.message}`
+      );
+      throw error;
+    }
+  }
+
   async clearUsedCdkeys(): Promise<{ success: boolean; count: number }> {
     try {
       // 清空数据库中的记录
@@ -484,16 +561,25 @@ export class AccountService {
     id: number,
     updateAccountDto: UpdateAccountDto
   ): Promise<Account> {
-    await this.accountRepository.update(id, updateAccountDto);
-    const updatedAccount = await this.accountRepository.findOne({
+    const account = await this.accountRepository.findOne({
       where: { id },
     });
 
-    if (!updatedAccount) {
+    if (!account) {
       throw new Error(`Account with id ${id} not found`);
     }
 
-    return updatedAccount;
+    // 仅当 updateAccountDto 中包含 password 时才更新
+    if (updateAccountDto.password !== undefined) {
+      // 不管新旧密码是否相同，都赋值以触发加密
+      account.password = updateAccountDto.password;
+    }
+
+    // 更新其他属性
+    Object.assign(account, updateAccountDto);
+
+    // 保存实体实例，触发 @BeforeUpdate()
+    return this.accountRepository.save(account);
   }
 
   async deleteAccount(id: number): Promise<void> {
@@ -523,6 +609,10 @@ export class AccountService {
 
     if (queryDto.roleid) {
       query.andWhere("account.roleid = :roleid", { roleid: queryDto.roleid });
+    }
+
+    if (queryDto.account) {
+      query.andWhere("account.account = :account", { account: queryDto.account });
     }
 
     if (queryDto.serverid) {
