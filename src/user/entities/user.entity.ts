@@ -3,7 +3,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Exclude, instanceToPlain } from 'class-transformer';
 import * as dayjs from 'dayjs';
 import { Transform } from 'class-transformer';
-import { desensitizePhone } from '@/common/utils/transform';
+import { desensitizePhone } from '../../common/utils/transform';
 
 @Entity()
 export class User {

@@ -151,10 +151,21 @@ jobs:
               docker stop langrissar-server-$CURRENT_COLOR || true
               # docker rm langrissar-server-$CURRENT_COLOR || true # 可选：立即删除或保留一段时间
               
+              # 发送部署成功飞书通知
+              FEISHU_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/77f093f4-a3a6-41cc-8f38-167cdcb49b8c"
+              MESSAGE="✅ 部署成功: langrissar-server 已更新到 $NEW_COLOR 版本 (端口 $NEW_PORT)。"
+              curl -X POST -H "Content-Type: application/json" -d '{"msg_type":"text","content":{"text":"'"$MESSAGE"'"}}' $FEISHU_WEBHOOK_URL
+              
               echo "部署完成，当前活动容器: langrissar-server-$NEW_COLOR"
             else
               echo "新容器 langrissar-server-$NEW_COLOR 启动失败或未通过健康检查 (最后状态码: $HTTP_STATUS)。保持旧容器 langrissar-server-$CURRENT_COLOR 运行。"
+              
+              # 发送部署失败飞书通知
+              FEISHU_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/77f093f4-a3a6-41cc-8f38-167cdcb49b8c"
+              MESSAGE="❌ 部署失败: langrissar-server $NEW_COLOR 版本启动失败或健康检查未通过 (最后状态码: $HTTP_STATUS)。旧容器 $CURRENT_COLOR 保持运行。"
+              curl -X POST -H "Content-Type: application/json" -d '{"msg_type":"text","content":{"text":"'"$MESSAGE"'"}}' $FEISHU_WEBHOOK_URL
+
               # 如果新容器启动失败，清理掉失败的容器
               docker stop langrissar-server-$NEW_COLOR || true
-              docker rm langrissar-server-$NEW_COLOR || true
+              # docker rm langrissar-server-$NEW_COLOR || true
             fi

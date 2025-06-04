@@ -2,7 +2,7 @@ import { Exclude, Transform } from 'class-transformer';
 import * as dayjs from 'dayjs';
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, BeforeInsert, BeforeUpdate } from 'typeorm';
 import * as CryptoJS from 'crypto-js';
-import {desensitizePhone} from '@/common/utils/transform'
+import {desensitizePhone} from '../../common/utils/transform'
 // 加密密钥，实际使用中应妥善保管
 const SECRET_KEY = 'mz-account-secret-key-myq';
 
