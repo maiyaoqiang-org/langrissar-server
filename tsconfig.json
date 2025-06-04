@@ -16,7 +16,7 @@
     "skipLibCheck": true,
     "incremental": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["src/*"]
     }
   }
 }
