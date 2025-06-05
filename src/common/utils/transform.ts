@@ -1,7 +1,9 @@
 // 脱敏处理函数
 export const desensitizePhone = ({ value }) => {
     if (value) {
-        return value.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2');
+        return value.replace(/(.{3})(.+)(.{4})/, (_, prefix, middle, suffix) => {
+            return `${prefix}${'*'.repeat(middle.length)}${suffix}`;
+        });
     }
     return value;
 };

@@ -13,6 +13,7 @@ import { CronJob } from "cron";
 import { LoggerService } from "../common/services/logger.service";
 import { ZlvipService, CycleType, CycleTypeDescription } from "./zlvip.service"; // 新增：引入 ZlvipService
 import { inspect } from "util";
+import * as crypto from 'crypto';
 
 export interface ResultItem {
   username: string;
@@ -499,7 +500,7 @@ export class AccountService {
           response: res,
         };
       }));
-  
+
       // 生成飞书通知消息
       let message = `自动获取${label}结果：\n`;
       results.forEach((result) => {
@@ -516,10 +517,10 @@ export class AccountService {
       this.logger.info(
         inspect(results, { depth: 4 })
       );
-  
+
       // 发送飞书通知
       await this.feishuService.sendMessage(message);
-  
+
       return message;
     } catch (error) {
       this.logger.error(label + error);
@@ -530,7 +531,7 @@ export class AccountService {
     }
   }
 
-  async autoGetVipSignReward(){
+  async autoGetVipSignReward() {
     try {
       const accounts = await this.findAll();
       const getVipAccounts = accounts.filter((account) => account.account && account.password);
@@ -544,7 +545,7 @@ export class AccountService {
           response: res,
         };
       }));
-  
+
       this.logger.info(
         inspect(results, { depth: 4 })
       );
@@ -558,11 +559,11 @@ export class AccountService {
         message += '\n';
       });
 
-      
-  
+
+
       // 发送飞书通知
       await this.feishuService.sendMessage(message);
-  
+
       return message;
     } catch (error) {
       this.logger.error(error);
@@ -680,4 +681,25 @@ export class AccountService {
       totalPages: Math.ceil(total / pageSize),
     };
   }
+
+  async getRoleInfo(roleid: string) {
+    try {
+      // 计算sign值
+      const sign = crypto.createHash('md5')
+        .update(`9e5b6610aa8614abb26e0617f09c3d2e${roleid}`)
+        .digest('hex');
+
+      console.log(sign)
+      console.log(roleid)
+
+      const url = `https://activity.zlongame.com/activity/cmn/gmt/getroleinfop.do?roleid=${roleid}&game_id=6&sign=${sign}`;
+      const response = await axios.get(url);
+
+      return response.data?.roleInfoList;
+    } catch (error) {
+      this.logger.error('获取角色信息失败', error);
+      throw error;
+    }
+  }
+
 }

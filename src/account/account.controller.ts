@@ -83,6 +83,14 @@ export class AccountController {
     return this.accountService.autoGetVipSignReward();
   }
 
+  @Get('get-role-info')
+  @ApiOperation({ summary: '获取角色信息' })
+  @ApiResponse({ status: 200, description: '获取成功' })
+  @ApiResponse({ status: 400, description: '获取失败' })
+  async getRoleInfo(@Query('roleid') roleid: string) {
+    return this.accountService.getRoleInfo(roleid);
+  }
+
   @Post()
   @Roles('admin')
   @ApiBearerAuth()
