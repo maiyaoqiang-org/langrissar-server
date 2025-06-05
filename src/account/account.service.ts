@@ -614,16 +614,20 @@ export class AccountService {
       throw new Error(`Account with id ${id} not found`);
     }
 
-    // 仅当 updateAccountDto 中包含 password 时才更新
-    if (updateAccountDto.password !== undefined) {
-      // 不管新旧密码是否相同，都赋值以触发加密
+    // 仅当传值时才更新password
+    if (updateAccountDto.password) {
       account.password = updateAccountDto.password;
     }
 
-    // 更新其他属性
-    Object.assign(account, updateAccountDto);
+    // 仅当传值时才更新account
+    if (updateAccountDto.account) {
+      account.account = updateAccountDto.account;
+    }
 
-    // 保存实体实例，触发 @BeforeUpdate()
+    // 更新其他属性（排除已单独处理的password和account）
+    const { password: _, account: __, ...otherProps } = updateAccountDto;
+    Object.assign(account, otherProps);
+
     return this.accountRepository.save(account);
   }
 
