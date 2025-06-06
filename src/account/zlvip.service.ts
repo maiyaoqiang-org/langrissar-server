@@ -10,7 +10,7 @@ export enum CycleType {
     Weekly = 2,
     Monthly = 3
 }
-  
+
 // 定义映射对象
 export const CycleTypeDescription = {
     [CycleType.Weekly]: '每周',
@@ -90,7 +90,7 @@ export class ZlvipService {
     }
     constructor() { }
 
-    async init(userInfo:UserInfo, appkey = ZlvipService.mzAppKey) {
+    async init(userInfo: UserInfo, appkey = ZlvipService.mzAppKey) {
         this.userInfo = userInfo
         this.currentGameAppkey = appkey
         await this.accountLogin()
@@ -215,15 +215,17 @@ export class ZlvipService {
     async signIn() {
         const signRes = await this.request('/web/service', {}, { func: "SR" })
         let isSign = false
-        if(signRes.data?.data?.record){
+        if (signRes.data?.data?.record) {
             // record: { '1': 0, '2': 1, '3': 1, '4': 1, '5': 1, '6': 3, '7': 3 },
             Object.values(signRes.data?.data?.record).forEach((item: number) => {
-                if(item === 1){
+                if (item === 1) {
                     isSign = true
+                } else if (item === 2) {
+                    isSign = false
                 }
             })
         }
-        if(isSign){
+        if (isSign) {
             return { code: 500001, msg: '今日已签到' }
         }
         const res = await this.request('/web/service', {}, { func: "MS" })
