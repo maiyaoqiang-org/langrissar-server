@@ -31,10 +31,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
     // 其他错误正常记录日志
     Logger.error(exception);
 
-    const message =
-      exception instanceof HttpException
-        ? exception.message
-        : exception.toString() || "服务器内部错误";
+    const message = exception?.response?.message?.[0]
+      || exception.message
+      || exception.toString()
+      || "服务器内部错误";
 
     response.status(status).json({
       code: status,

@@ -1,4 +1,4 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsString, IsOptional, IsJSON } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { UserInfo } from '../zlvip.service';
 
@@ -24,7 +24,7 @@ export class CreateAccountDto {
   password?: string;
 
   @IsOptional()
-  @IsString()
+  @IsJSON({ message: 'userInfo必须是有效的JSON字符串' })
   userInfo?: string; // 改为对象类型
 }
 
@@ -54,7 +54,7 @@ export class UpdateAccountDto {
   password?: string;
 
   @IsOptional()
-  @IsString()
+  @IsJSON({ message: 'userInfo必须是有效的JSON字符串' })
   userInfo: string; // 改为对象类型
 }
 
