@@ -11,7 +11,7 @@ export class TypeOrmExceptionFilter implements ExceptionFilter {
     let message = `数据库操作失败：${exception.message}`;
     const code = (exception as any).errno || 500;
 
-    Logger.error(exception);
+    // Logger.error(exception);
     // MySQL 错误码处理
     // switch ((exception as any).code) {
     //   case 'ER_DUP_ENTRY':

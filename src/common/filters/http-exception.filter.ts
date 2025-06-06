@@ -29,7 +29,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
 
     // 其他错误正常记录日志
-    Logger.error(exception);
+    // Logger.error(exception);
 
     const message = exception?.response?.message?.[0]
       || exception.message
