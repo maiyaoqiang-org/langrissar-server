@@ -213,6 +213,19 @@ export class ZlvipService {
     }
 
     async signIn() {
+        const signRes = await this.request('/web/service', {}, { func: "SR" })
+        let isSign = false
+        if(signRes.data?.data?.record){
+            // record: { '1': 0, '2': 1, '3': 1, '4': 1, '5': 1, '6': 3, '7': 3 },
+            Object.values(signRes.data?.data?.record).forEach((item: number) => {
+                if(item === 1){
+                    isSign = true
+                }
+            })
+        }
+        if(isSign){
+            return { code: 500001, msg: '今日已签到' }
+        }
         const res = await this.request('/web/service', {}, { func: "MS" })
         return res.data;
     }
