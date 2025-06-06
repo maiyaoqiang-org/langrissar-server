@@ -41,9 +41,7 @@ jobs:
           echo "DB_PASSWORD=$DB_PASSWORD" >> .env.production
           echo "DB_DATABASE=$DB_DATABASE" >> .env.production
           echo "NODE_ENV=$NODE_ENV" >> .env.production
-          docker buildx build --push --platform linux/amd64 \
-            --progress plain \  # Add this for verbose output
-            --tag crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest .
+          docker buildx build --push --platform linux/amd64 --progress plain --tag crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest .
 
       - name: SSH Deploy
         uses: appleboy/ssh-action@master
