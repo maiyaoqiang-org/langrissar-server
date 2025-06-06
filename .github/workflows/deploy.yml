@@ -106,8 +106,8 @@ jobs:
             # 等待新容器启动并健康检查
             echo "等待新容器 langrissar-server-$NEW_COLOR (端口 $NEW_PORT) 启动并进行健康检查..."
             HEALTH_CHECK_URL="http://127.0.0.1:$NEW_PORT/"
-            MAX_ATTEMPTS=10 # 最多尝试10次
-            RETRY_INTERVAL=6 # 每次尝试间隔6秒 (总共最多等待60秒)
+            MAX_ATTEMPTS=20 # 最多尝试10次
+            RETRY_INTERVAL=10 # 每次尝试间隔6秒 (总共最多等待60秒)
             ATTEMPT_NUM=0
             
             until [ $ATTEMPT_NUM -ge $MAX_ATTEMPTS ]
