@@ -39,7 +39,7 @@ interface User {
 }
 
 // 定义 Data 类型
-interface UserInfo {
+export interface UserInfo {
     accountid: string;
     userlist: User[];
 }
@@ -76,13 +76,12 @@ export class ZlvipService {
     account: string;
     password: string;
     currentGameAppkey: number = 1486458782785
-    loginRes: LoginResponse;
     userInfo: UserInfo;
     currentToken: string;
     currentUserDetail: CurrentUserDetail;
 
     get currentUser() {
-        return this.loginRes.data.userlist.find(user => user.appkey === this.currentGameAppkey)
+        return this.userInfo?.userlist?.find(user => user.appkey === this.currentGameAppkey)
     }
     private getRamNumber() {
         for (var e = "", t = 0; t < 40; t++)
@@ -91,54 +90,51 @@ export class ZlvipService {
     }
     constructor() { }
 
-    async init(account, password, appkey = ZlvipService.mzAppKey) {
-        await this.login({
-            account,
-            password
-        })
+    async init(userInfo:UserInfo, appkey = ZlvipService.mzAppKey) {
+        this.userInfo = userInfo
         this.currentGameAppkey = appkey
         await this.accountLogin()
     }
 
-    async login({ account, password }: { account: string, password: string }) {
-        this.account = account; // 替换为实际的账号
-        this.password = password; // 替换为实际的密码
-        const appkey = 1448278e6;
-        const t = {
-            appkey: appkey,
-            device: `vipmember${this.getRamNumber()}`,
-            action: "access",
-            channel: "1000000002",
-            ecid: "3010311001",
-            version: "v2",
-            tag: 1,
-            union_platform: 1,
-            account: this.account,
-            password: this.password,
-        }
-        const n = penc.ps(t)
-        n.h.appkey = appkey
-        const res = await axios(`https://member.zlongame.com/passport/method_login.zlongame?d=${n.d}`, {
-            method: "GET",
-            headers: {
-                ...n.h
-            }
-        })
+    // async login({ account, password }: { account: string, password: string }) {
+    //     this.account = account; // 替换为实际的账号
+    //     this.password = password; // 替换为实际的密码
+    //     const appkey = 1448278e6;
+    //     const t = {
+    //         appkey: appkey,
+    //         device: `vipmember${this.getRamNumber()}`,
+    //         action: "access",
+    //         channel: "1000000002",
+    //         ecid: "3010311001",
+    //         version: "v2",
+    //         tag: 1,
+    //         union_platform: 1,
+    //         account: this.account,
+    //         password: this.password,
+    //     }
+    //     const n = penc.ps(t)
+    //     n.h.appkey = appkey
+    //     const res = await axios(`https://member.zlongame.com/passport/method_login.zlongame?d=${n.d}`, {
+    //         method: "GET",
+    //         headers: {
+    //             ...n.h
+    //         }
+    //     })
 
-        const param = {
-            "zl-ret-nonce": res.headers['zl-ret-nonce'],
-            "zl-ret-sign": res.headers['zl-ret-sign'],
-            getResponseHeader: function (e) {
-                return param[e]
-            }
-        }
+    //     const param = {
+    //         "zl-ret-nonce": res.headers['zl-ret-nonce'],
+    //         "zl-ret-sign": res.headers['zl-ret-sign'],
+    //         getResponseHeader: function (e) {
+    //             return param[e]
+    //         }
+    //     }
 
-        const loginRes: LoginResponse = penc.de(res.data.ret, param, n.h['zl-p-nonce'])
-        // this.logger.info(inspect(loginRes, { depth: 2 }))
-        // console.log(inspect(loginRes, { depth: 3 }))
-        this.loginRes = loginRes
-        this.userInfo = loginRes.data
-    }
+    //     const loginRes: LoginResponse = penc.de(res.data.ret, param, n.h['zl-p-nonce'])
+    //     // this.logger.info(inspect(loginRes, { depth: 2 }))
+    //     // console.log(inspect(loginRes, { depth: 3 }))
+    //     this.loginRes = loginRes
+    //     this.userInfo = loginRes.data
+    // }
 
     async request(url: string, params: any, config: any) {
         const headers = {

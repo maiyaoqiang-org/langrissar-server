@@ -1,4 +1,6 @@
 import { IsString, IsOptional } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { UserInfo } from '../zlvip.service';
 
 export class CreateAccountDto {
   @IsString()
@@ -20,6 +22,10 @@ export class CreateAccountDto {
   @IsOptional()
   @IsString()
   password?: string;
+
+  @IsOptional()
+  @IsString()
+  userInfo?: string; // 改为对象类型
 }
 
 export class UpdateAccountDto {
@@ -46,6 +52,10 @@ export class UpdateAccountDto {
   @IsOptional()
   @IsString()
   password?: string;
+
+  @IsOptional()
+  @IsString()
+  userInfo: string; // 改为对象类型
 }
 
 export class QueryAccountDto {

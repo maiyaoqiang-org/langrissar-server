@@ -11,7 +11,7 @@ import { CreateAccountDto, UpdateAccountDto } from "./dto/account.dto";
 import { QueryAccountDto } from "./dto/query-account.dto";
 import { CronJob } from "cron";
 import { LoggerService } from "../common/services/logger.service";
-import { ZlvipService, CycleType, CycleTypeDescription } from "./zlvip.service"; // 新增：引入 ZlvipService
+import { ZlvipService, CycleType, CycleTypeDescription, UserInfo } from "./zlvip.service"; // 新增：引入 ZlvipService
 import { inspect } from "util";
 import * as crypto from 'crypto';
 
@@ -479,11 +479,8 @@ export class AccountService {
   }
 
   async getVipReward(cycleType: CycleType, account: Account) {
-
-    const accId = account.account
-    const password = account.decryptPassword()
     const vip = new ZlvipService()
-    await vip.init(accId, password, ZlvipService.mzAppKey)
+    await vip.init(account.userInfo as UserInfo, ZlvipService.mzAppKey)
     const res = await vip.autoProjectGift(cycleType, account.roleid, account.serverid)
     return res
   }
@@ -492,7 +489,7 @@ export class AccountService {
     const label = `VIP${CycleTypeDescription[cycleType]}奖励`
     try {
       const accounts = await this.findAll();
-      const getVipAccounts = accounts.filter((account) => account.account && account.password);
+      const getVipAccounts = accounts.filter((account) => account.userInfo);
       const results = await Promise.all(getVipAccounts.map(async (account) => {
         const res = await this.getVipReward(cycleType, account);
         return {
@@ -534,10 +531,10 @@ export class AccountService {
   async autoGetVipSignReward() {
     try {
       const accounts = await this.findAll();
-      const getVipAccounts = accounts.filter((account) => account.account && account.password);
+      const getVipAccounts = accounts.filter((account) => account.userInfo);
       const results = await Promise.all(getVipAccounts.map(async (account) => {
         const vip = new ZlvipService()
-        await vip.init(account.account, account.decryptPassword(), ZlvipService.mzAppKey)
+        await vip.init(account.userInfo as UserInfo, ZlvipService.mzAppKey)
         const res = await vip.signIn()
 
         return {
@@ -625,7 +622,7 @@ export class AccountService {
     }
 
     // 更新其他属性（排除已单独处理的password和account）
-    const { password: _, account: __, ...otherProps } = updateAccountDto;
+    const { ...otherProps } = updateAccountDto;
     Object.assign(account, otherProps);
 
     return this.accountRepository.save(account);
