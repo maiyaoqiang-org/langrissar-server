@@ -6,11 +6,16 @@ import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto'; // 假�
 import { Roles } from 'src/auth/roles.decorator';
 import { QueryAccountDto } from './dto/query-account.dto';
 import { CycleType, CycleTypeDescription } from './zlvip.service';
+import { QueryZlVipDto } from './dto/query-zlvip.dto';
+import { ZlVipUserService } from './zlvipuser.service';
 
 @ApiTags('账号管理')
 @Controller('account')
 export class AccountController {
-  constructor(private readonly accountService: AccountService) {}
+  constructor(
+    private readonly accountService: AccountService,
+    private readonly zlVipUserService: ZlVipUserService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: '获取所有账号' })
@@ -129,5 +134,37 @@ export class AccountController {
   @ApiResponse({ status: 400, description: '查询失败' })
   async findAllPaginated(@Body() queryDto: QueryAccountDto) {
     return this.accountService.findAllPaginated(queryDto);
+  }
+
+  @Post('zlvip')
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '创建zlvip账号' })
+  async createZlVip(@Body() data: { name: string; userInfo: any }) {
+      return this.zlVipUserService.createZlVip(data);
+  }
+  
+  @Put('zlvip/:id')
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '更新zlvip账号' })
+  async updateZlVip(@Param('id') id: number, @Body() data: { name?: string; userInfo?: any }) {
+      return this.zlVipUserService.updateZlVip(id, data);
+  }
+  
+  @Delete('zlvip/:id')
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '删除zlvip账号' })
+  async deleteZlVip(@Param('id') id: number) {
+      return this.zlVipUserService.deleteZlVip(id);
+  }
+  
+  @Post('zlvip/query')
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '分页查询zlvip账号' })
+  async queryZlVips(@Body() queryDto: QueryZlVipDto) {
+      return this.zlVipUserService.queryZlVips(queryDto);
   }
 }

@@ -14,6 +14,8 @@ import { LoggerService } from "../common/services/logger.service";
 import { ZlvipService, CycleType, CycleTypeDescription, UserInfo } from "./zlvip.service"; // 新增：引入 ZlvipService
 import { inspect } from "util";
 import * as crypto from 'crypto';
+import { ZlVipUserService } from "./zlvipuser.service";
+import { ZlVip } from "./entities/zlvip.entity";
 
 export interface ResultItem {
   username: string;
@@ -33,7 +35,9 @@ export class AccountService {
     @InjectRepository(UsedCdkey)
     private usedCdkeyRepository: Repository<UsedCdkey>,
     private feishuService: FeishuService,
-    private scraperService: ScraperService
+    private scraperService: ScraperService,
+    @InjectRepository(ZlVip)
+    private zlVipRepository: Repository<ZlVip>,
   ) {
     this.loadUsedCdkeys();
     this.initCronJobs();
@@ -482,7 +486,7 @@ export class AccountService {
 
   async getVipReward(cycleType: CycleType, account: Account) {
     const vip = new ZlvipService()
-    await vip.init(account.zlVip.userInfo as UserInfo, ZlvipService.mzAppKey)
+    await vip.init(account?.zlVip?.userInfo as UserInfo, ZlvipService.mzAppKey)
     const res = await vip.autoProjectGift(cycleType, account.roleid, account.serverid)
     return res
   }
@@ -491,7 +495,7 @@ export class AccountService {
     const label = `VIP${CycleTypeDescription[cycleType]}奖励`
     try {
       const accounts = await this.findAll();
-      const getVipAccounts = accounts.filter((account) => account.zlVip.userInfo);
+      const getVipAccounts = accounts.filter((account) => account.zlVip?.userInfo);
       const results = await Promise.all(getVipAccounts.map(async (account) => {
         const res = await this.getVipReward(cycleType, account);
         return {
@@ -532,15 +536,21 @@ export class AccountService {
 
   async autoGetVipSignReward() {
     try {
-      const accounts = await this.findAll();
-      const getVipAccounts = accounts.filter((account) => account.zlVip.userInfo);
-      const results = await Promise.all(getVipAccounts.map(async (account) => {
+      // 直接查询zlVip表获取有userInfo的记录
+      const zlVips = await this.accountRepository
+        .createQueryBuilder('account')
+        .leftJoinAndSelect('account.zlVip', 'zlVip')
+        .where('zlVip.userInfo IS NOT NULL')
+        .getMany()
+        .then(accounts => accounts.map(account => account.zlVip));
+
+      const results = await Promise.all(zlVips.map(async (zlVip) => {
         const vip = new ZlvipService()
-        await vip.init(account.zlVip.userInfo as UserInfo, ZlvipService.mzAppKey)
+        await vip.init(zlVip?.userInfo as UserInfo, ZlvipService.mzAppKey)
         const res = await vip.signIn()
 
         return {
-          username: account.username,
+          username: zlVip?.name, // 使用zlVip的name字段
           response: res,
         };
       }));
@@ -598,6 +608,12 @@ export class AccountService {
 
   async createAccount(createAccountDto: CreateAccountDto): Promise<Account> {
     const account = this.accountRepository.create(createAccountDto);
+    // 添加zlVip关联处理
+    if (createAccountDto.zlVipId) {
+      account.zlVip = await this.zlVipRepository.findOne({
+        where: { id: createAccountDto.zlVipId },
+      });
+    }
     return this.accountRepository.save(account);
   }
 
@@ -626,6 +642,13 @@ export class AccountService {
     // 更新其他属性（排除已单独处理的password和account）
     const { ...otherProps } = updateAccountDto;
     Object.assign(account, otherProps);
+
+    // 添加zlVip关联处理
+    if (updateAccountDto.zlVipId) {
+      account.zlVip = await this.zlVipRepository.findOne({
+        where: { id: updateAccountDto.zlVipId },
+      });
+    }
 
     return this.accountRepository.save(account);
   }

@@ -68,6 +68,6 @@ export class Account {
     return null;
   }
 
-  @ManyToOne(() => ZlVip, zlVip => zlVip.accounts)
-  zlVip: ZlVip;
+  @ManyToOne(() => ZlVip, zlVip => zlVip.accounts,{ nullable: true })
+  zlVip: ZlVip |null;
 }

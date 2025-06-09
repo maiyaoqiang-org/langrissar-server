@@ -6,14 +6,15 @@ import { Account } from './entities/account.entity';
 import { UsedCdkey } from './entities/used-cdkey.entity';
 import { FeishuService } from 'src/common/services/feishu.service';
 import { ScraperModule } from 'src/scraper/scraper.module';
-import { ZlvipService } from './zlvip.service';
+import { ZlVipUserService } from './zlvipuser.service';
+import { ZlVip } from './entities/zlvip.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Account,UsedCdkey]),
-    ScraperModule
+    TypeOrmModule.forFeature([Account,UsedCdkey,ZlVip]),
+    ScraperModule,
   ],
   controllers: [AccountController],
-  providers: [AccountService,FeishuService],
+  providers: [AccountService, FeishuService, ZlVipUserService],
 })
 export class AccountModule {}

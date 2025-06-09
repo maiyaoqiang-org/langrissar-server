@@ -23,9 +23,11 @@ export class CreateAccountDto {
   @IsString()
   password?: string;
 
+  // @IsOptional()
+  // @IsJSON({ message: 'userInfo必须是有效的JSON字符串' })
+  // userInfo?: string; // 改为对象类型
   @IsOptional()
-  @IsJSON({ message: 'userInfo必须是有效的JSON字符串' })
-  userInfo?: string; // 改为对象类型
+  zlVipId?: number;
 }
 
 export class UpdateAccountDto {
@@ -53,9 +55,12 @@ export class UpdateAccountDto {
   @IsString()
   password?: string;
 
+  // @IsOptional()
+  // @IsJSON({ message: 'userInfo必须是有效的JSON字符串' })
+  // userInfo: string; // 改为对象类型
+
   @IsOptional()
-  @IsJSON({ message: 'userInfo必须是有效的JSON字符串' })
-  userInfo: string; // 改为对象类型
+  zlVipId?: number;
 }
 
 export class QueryAccountDto {
