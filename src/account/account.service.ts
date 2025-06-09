@@ -124,7 +124,9 @@ export class AccountService {
   }
 
   async findAll(): Promise<Account[]> {
-    return this.accountRepository.find();
+    return this.accountRepository.find({
+      relations: ['zlVip'] // 添加关联查询
+    });
   }
 
   async getPredayReward(): Promise<ResultItem[]> {
@@ -480,7 +482,7 @@ export class AccountService {
 
   async getVipReward(cycleType: CycleType, account: Account) {
     const vip = new ZlvipService()
-    await vip.init(account.userInfo as UserInfo, ZlvipService.mzAppKey)
+    await vip.init(account.zlVip.userInfo as UserInfo, ZlvipService.mzAppKey)
     const res = await vip.autoProjectGift(cycleType, account.roleid, account.serverid)
     return res
   }
@@ -489,7 +491,7 @@ export class AccountService {
     const label = `VIP${CycleTypeDescription[cycleType]}奖励`
     try {
       const accounts = await this.findAll();
-      const getVipAccounts = accounts.filter((account) => account.userInfo);
+      const getVipAccounts = accounts.filter((account) => account.zlVip.userInfo);
       const results = await Promise.all(getVipAccounts.map(async (account) => {
         const res = await this.getVipReward(cycleType, account);
         return {
@@ -531,10 +533,10 @@ export class AccountService {
   async autoGetVipSignReward() {
     try {
       const accounts = await this.findAll();
-      const getVipAccounts = accounts.filter((account) => account.userInfo);
+      const getVipAccounts = accounts.filter((account) => account.zlVip.userInfo);
       const results = await Promise.all(getVipAccounts.map(async (account) => {
         const vip = new ZlvipService()
-        await vip.init(account.userInfo as UserInfo, ZlvipService.mzAppKey)
+        await vip.init(account.zlVip.userInfo as UserInfo, ZlvipService.mzAppKey)
         const res = await vip.signIn()
 
         return {
@@ -641,6 +643,7 @@ export class AccountService {
   }> {
     const query = this.accountRepository
       .createQueryBuilder("account")
+      .leftJoinAndSelect("account.zlVip", "zlVip") // 新增：关联查询zlvip
       .orderBy("account.createdAt", "DESC");
 
     if (queryDto.username) {
