@@ -5,7 +5,7 @@ import { ResultItem } from './account.service';  // 添加这行导入语句
 import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto'; // 假设你有这些 DTO
 import { Roles } from 'src/auth/roles.decorator';
 import { QueryAccountDto } from './dto/query-account.dto';
-import { CycleType, CycleTypeDescription } from './zlvip.service';
+import { CycleType, CycleTypeDescription, UserInfo, ZlvipService } from './zlvip.service';
 import { QueryZlVipDto } from './dto/query-zlvip.dto';
 import { ZlVipUserService } from './zlvipuser.service';
 
@@ -166,5 +166,22 @@ export class AccountController {
   @ApiOperation({ summary: '分页查询zlvip账号' })
   async queryZlVips(@Body() queryDto: QueryZlVipDto) {
       return this.zlVipUserService.queryZlVips(queryDto);
+  }
+
+
+  @Get('getVipHomeGameList')
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '获取VIP游戏列表' })
+  async getVipHomeGameList(@Query('id') id: number) {
+    return this.accountService.getHomeGameList(id);
+  }
+
+  @Get('queryRoleList')
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '获取VIP游戏账号列表' })
+  async queryRoleList(@Query('id') id: number,@Query('appKey') appKey: number) {
+    return this.accountService.queryRoleList(id,appKey);
   }
 }

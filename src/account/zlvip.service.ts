@@ -68,6 +68,17 @@ interface CurrentUserDetail {
     accId: string;
 }
 
+export interface GameInfo {
+    id: null;
+    appId: string;
+    appKey: number;
+    name: string;
+    itemIcons: string[];
+    mainIcon: string;
+    description: string;
+    extInfo: null;
+}
+
 
 @Injectable()
 export class ZlvipService {
@@ -180,6 +191,16 @@ export class ZlvipService {
         }, { func: "GTP" })
         // console.log(inspect(res.data, { depth: 3 }));
         return res.data.data.data
+    }
+
+    async homeGameList() :Promise<GameInfo[]> {
+        const res = await this.request('/web/service', {}, { func: "APP" })
+        return res.data.data
+    }
+
+    async queryRoleList() :Promise<GameInfo[]> {
+        const res = await this.request('/web/service', {}, { func: "RO" })
+        return res.data.data
     }
 
     async autoProjectGift(cycleType: CycleType, roleId: string, serverId: string) {

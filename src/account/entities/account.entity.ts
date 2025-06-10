@@ -24,6 +24,9 @@ export class Account {
   @Column()
   serverid: string;
 
+  @Column({ nullable: true })
+  appKey: number;
+
   @CreateDateColumn({ type: 'timestamp' })
   @Transform(({ value }) => dayjs(value).format('YYYY-MM-DD HH:mm:ss'), { toPlainOnly: true })
   createdAt: Date;

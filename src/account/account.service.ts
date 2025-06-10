@@ -729,4 +729,20 @@ export class AccountService {
     }
   }
 
+  async getHomeGameList(id:number){
+    const zlVip = await this.zlVipRepository.findOne({where:{id}})
+    const vip = new ZlvipService()
+    await vip.init(zlVip?.userInfo as UserInfo, ZlvipService.mzAppKey)
+    const res = await vip.homeGameList()
+    return res
+  }
+
+  async queryRoleList(id:number,appKey:number){
+    const zlVip = await this.zlVipRepository.findOne({where:{id}})
+    const vip = new ZlvipService()
+    await vip.init(zlVip?.userInfo as UserInfo, appKey||ZlvipService.mzAppKey)
+    const res = await vip.queryRoleList()
+    return res
+  }
+
 }

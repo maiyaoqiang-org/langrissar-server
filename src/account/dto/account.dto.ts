@@ -16,6 +16,9 @@ export class CreateAccountDto {
   serverid: string;
 
   @IsOptional()
+  appKey?: number;
+
+  @IsOptional()
   @IsString()
   account?: string;
 
@@ -46,6 +49,9 @@ export class UpdateAccountDto {
   @IsOptional()
   @IsString()
   serverid?: string;
+
+  @IsOptional()
+  appKey?: number;
 
   @IsOptional()
   @IsString()
