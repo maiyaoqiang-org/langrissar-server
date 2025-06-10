@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { IsNull, Not, Repository } from "typeorm";
 import { Account } from "./entities/account.entity";
 import { UsedCdkey } from "./entities/used-cdkey.entity";
 import { FeishuService } from "../common/services/feishu.service";
@@ -127,15 +127,30 @@ export class AccountService {
     }
   }
 
-  async findAll(): Promise<Account[]> {
+  async findAllMz(): Promise<Account[]> {
     return this.accountRepository.find({
-      relations: ['zlVip'] // 添加关联查询
+      relations: ['zlVip'], // 添加关联查询
+      where: [
+        { appKey: ZlvipService.mzAppKey },
+        { appKey: IsNull() }
+      ]
+    });
+  }
+
+  async findAllVip(): Promise<Account[]> {
+    return this.accountRepository.find({
+      relations: ['zlVip'],
+      where: {
+        zlVip: {
+          id: Not(IsNull())
+        }
+      }
     });
   }
 
   async getPredayReward(): Promise<ResultItem[]> {
     try {
-      const accounts = await this.findAll();
+      const accounts = await this.findAllMz();
       const results: ResultItem[] = [];
 
       for (const account of accounts) {
@@ -205,7 +220,7 @@ export class AccountService {
 
   async getWeeklyReward(): Promise<ResultItem[]> {
     try {
-      const accounts = await this.findAll();
+      const accounts = await this.findAllMz();
       const results: ResultItem[] = [];
 
       for (const account of accounts) {
@@ -274,7 +289,7 @@ export class AccountService {
 
   async getMonthlyReward(): Promise<ResultItem[]> {
     try {
-      const accounts = await this.findAll();
+      const accounts = await this.findAllMz();
       const results: ResultItem[] = [];
 
       for (const account of accounts) {
@@ -344,7 +359,7 @@ export class AccountService {
 
   async getCdkeyReward(cdkey: string): Promise<ResultItem[]> {
     try {
-      const accounts = await this.findAll();
+      const accounts = await this.findAllMz();
       const results: ResultItem[] = [];
 
       // 先检查是否已经使用过这个 CDKey
@@ -426,6 +441,7 @@ export class AccountService {
     }
   }
 
+  // 领取cdkey梦战专属 
   async autoGetAndUseCdkey(): Promise<string[]> {
     try {
       // 直接调用 scraperService
@@ -494,7 +510,7 @@ export class AccountService {
   async autoGetVipReward(cycleType: CycleType) {
     const label = `VIP${CycleTypeDescription[cycleType]}奖励`
     try {
-      const accounts = await this.findAll();
+      const accounts = await this.findAllVip();
       const getVipAccounts = accounts.filter((account) => account.zlVip?.userInfo);
       const results = await Promise.all(getVipAccounts.map(async (account) => {
         const res = await this.getVipReward(cycleType, account);
@@ -607,6 +623,20 @@ export class AccountService {
   }
 
   async createAccount(createAccountDto: CreateAccountDto): Promise<Account> {
+    // 检查是否存在相同appKey和zlVipId的记录
+    if (createAccountDto.appKey && createAccountDto.zlVipId) {
+      const existingAccount = await this.accountRepository.findOne({
+        where: {
+          appKey: createAccountDto.appKey,
+          zlVip: { id: createAccountDto.zlVipId }
+        }
+      });
+
+      if (existingAccount) {
+        throw new Error('已存在相同appKey和zlVipId的账号记录');
+      }
+    }
+
     const account = this.accountRepository.create(createAccountDto);
     // 添加zlVip关联处理
     if (createAccountDto.zlVipId) {
@@ -629,6 +659,20 @@ export class AccountService {
       throw new Error(`Account with id ${id} not found`);
     }
 
+    // 检查是否存在相同appKey和zlVipId的记录
+    if (updateAccountDto.appKey && updateAccountDto.zlVipId) {
+      const existingAccount = await this.accountRepository.findOne({
+        where: {
+          appKey: updateAccountDto.appKey,
+          zlVip: { id: updateAccountDto.zlVipId }
+        }
+      });
+
+      if (existingAccount && existingAccount.id !== id) {
+        throw new Error('已存在相同appKey和zlVipId的账号记录');
+      }
+    }
+
     // 仅当传值时才更新password
     if (updateAccountDto.password) {
       account.password = updateAccountDto.password;
@@ -648,11 +692,11 @@ export class AccountService {
       account.zlVip = await this.zlVipRepository.findOne({
         where: { id: updateAccountDto.zlVipId },
       });
-    }else{
+    } else {
       account.zlVip = null
     }
 
-    if(!updateAccountDto.appKey){
+    if (!updateAccountDto.appKey) {
       account.appKey = null
     }
 
@@ -735,18 +779,18 @@ export class AccountService {
     }
   }
 
-  async getHomeGameList(id:number){
-    const zlVip = await this.zlVipRepository.findOne({where:{id}})
+  async getHomeGameList(id: number) {
+    const zlVip = await this.zlVipRepository.findOne({ where: { id } })
     const vip = new ZlvipService()
     await vip.init(zlVip?.userInfo as UserInfo, null)
     const res = await vip.homeGameList()
     return res
   }
 
-  async queryRoleList(id:number,appKey:number){
-    const zlVip = await this.zlVipRepository.findOne({where:{id}})
+  async queryRoleList(id: number, appKey: number) {
+    const zlVip = await this.zlVipRepository.findOne({ where: { id } })
     const vip = new ZlvipService()
-    await vip.init(zlVip?.userInfo as UserInfo, appKey||ZlvipService.mzAppKey)
+    await vip.init(zlVip?.userInfo as UserInfo, appKey || ZlvipService.mzAppKey)
     const res = await vip.queryRoleList()
     return res
   }

@@ -17,13 +17,6 @@ export class AccountController {
     private readonly zlVipUserService: ZlVipUserService,
   ) {}
 
-  @Get()
-  @ApiOperation({ summary: '获取所有账号' })
-  @ApiResponse({ status: 200, description: '获取成功' })
-  @ApiResponse({ status: 400, description: '获取失败' })
-  findAll() {
-    return this.accountService.findAll();
-  }
 
   @Get('get-preday-reward')
   @ApiOperation({ summary: '领取每日福利' })
