@@ -60,7 +60,7 @@ export class AccountService {
 
       // 每天凌晨0点01分执行获取每日福利
       new CronJob(
-        "20 0 0 * * *",
+        "0 5 0 * * *",
         () => {
           this.getPredayReward();
           this.autoGetVipSignReward()
@@ -83,7 +83,7 @@ export class AccountService {
 
       // 每月8-14号凌晨0点36分执行获取每月福利
       new CronJob(
-        "20 0 0 8-14 * *",
+        "0 5 0 8-14 * *",
         () => {
           this.getMonthlyReward();
         },
@@ -94,7 +94,7 @@ export class AccountService {
 
       // 每月1号凌晨0点24分执行领取autoGetVipReward
       new CronJob(
-        "20 0 0 1 * *",
+        "0 5 0 1 * *",
         () => {
           this.autoGetVipReward(CycleType.Monthly);
         },
@@ -105,7 +105,7 @@ export class AccountService {
 
       // 每周一凌晨0点01分执行autoGetVipReward
       new CronJob(
-        "20 0 0 * * 1",
+        "0 5 0 * * 1",
         () => {
           this.autoGetVipReward(CycleType.Weekly);
         },
@@ -486,7 +486,7 @@ export class AccountService {
 
   async getVipReward(cycleType: CycleType, account: Account) {
     const vip = new ZlvipService()
-    await vip.init(account?.zlVip?.userInfo as UserInfo, ZlvipService.mzAppKey)
+    await vip.init(account?.zlVip?.userInfo as UserInfo, account.appKey)
     const res = await vip.autoProjectGift(cycleType, account.roleid, account.serverid)
     return res
   }
@@ -648,6 +648,12 @@ export class AccountService {
       account.zlVip = await this.zlVipRepository.findOne({
         where: { id: updateAccountDto.zlVipId },
       });
+    }else{
+      account.zlVip = null
+    }
+
+    if(!updateAccountDto.appKey){
+      account.appKey = null
     }
 
     return this.accountRepository.save(account);

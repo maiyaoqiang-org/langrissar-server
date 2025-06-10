@@ -101,7 +101,10 @@ export class ZlvipService {
     }
     constructor() { }
 
-    async init(userInfo: UserInfo, appkey = ZlvipService.mzAppKey) {
+    async init(userInfo: UserInfo, appkey:number|null = ZlvipService.mzAppKey) {
+        if(!appkey){
+            appkey = ZlvipService.mzAppKey
+        }
         this.userInfo = userInfo
         this.currentGameAppkey = appkey
         await this.accountLogin()
