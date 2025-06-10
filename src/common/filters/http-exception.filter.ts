@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from "@nestjs/common";
+import { isString } from "class-validator";
 import { Response } from "express";
 
 @Catch()
@@ -30,8 +31,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     // 其他错误正常记录日志
     // Logger.error(exception);
-
-    const message = exception?.response?.message?.[0]
+    const message1 = isString(exception?.response?.message)? exception?.response?.message:""
+    const message2 = Array.isArray(exception?.response?.message)? exception?.response?.message[0]:""
+    const message = message1
+      || message2
       || exception.message
       || exception.toString()
       || "服务器内部错误";

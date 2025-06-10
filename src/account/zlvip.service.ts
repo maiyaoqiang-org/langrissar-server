@@ -101,12 +101,15 @@ export class ZlvipService {
     }
     constructor() { }
 
-    async init(userInfo: UserInfo, appkey:number|null = ZlvipService.mzAppKey) {
-        if(!appkey){
+    setUserInfo(userInfo: UserInfo,appkey: number | null = ZlvipService.mzAppKey) {
+        if (!appkey) {
             appkey = ZlvipService.mzAppKey
         }
-        this.userInfo = userInfo
+        this.userInfo = userInfo;
         this.currentGameAppkey = appkey
+    }
+    async init(userInfo: UserInfo, appkey: number | null = ZlvipService.mzAppKey) {
+        this.setUserInfo(userInfo,appkey)
         await this.accountLogin()
     }
 
@@ -179,10 +182,13 @@ export class ZlvipService {
     }
 
     async accountLogin() {
+        if (!this.currentUser) {
+            throw new Error("没有对应账号")
+        }
         const res = await this.request('/web/service', {}, { func: "MP" })
         this.currentToken = res.headers['sid']
         this.currentUserDetail = res.data.data as CurrentUserDetail
-        if(res.data.code==400){
+        if (res.data.code == 400) {
             throw new Error(res.data.msg)
         }
     }
@@ -197,12 +203,12 @@ export class ZlvipService {
         return res.data.data.data
     }
 
-    async homeGameList() :Promise<GameInfo[]> {
+    async homeGameList(): Promise<GameInfo[]> {
         const res = await this.request('/web/service', {}, { func: "APP" })
         return res.data.data
     }
 
-    async queryRoleList() :Promise<GameInfo[]> {
+    async queryRoleList(): Promise<GameInfo[]> {
         const res = await this.request('/web/service', {}, { func: "RO" })
         return res.data.data
     }

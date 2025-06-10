@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { HttpException, Injectable, BadRequestException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { IsNull, Not, Repository } from "typeorm";
 import { Account } from "./entities/account.entity";
@@ -789,8 +789,14 @@ export class AccountService {
 
   async queryRoleList(id: number, appKey: number) {
     const zlVip = await this.zlVipRepository.findOne({ where: { id } })
+    const userInfo = zlVip?.userInfo as UserInfo
+    const cAppKey = Number(appKey || ZlvipService.mzAppKey)
     const vip = new ZlvipService()
-    await vip.init(zlVip?.userInfo as UserInfo, appKey || ZlvipService.mzAppKey)
+    vip.setUserInfo(userInfo, cAppKey)
+    if (!vip.currentUser) {
+      return []
+    }
+    await vip.init(userInfo, cAppKey)
     const res = await vip.queryRoleList()
     return res
   }
