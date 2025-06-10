@@ -92,7 +92,7 @@ export class ZlvipService {
     currentUserDetail: CurrentUserDetail;
 
     get currentUser() {
-        return this.userInfo?.userlist?.find(user => user.appkey === this.currentGameAppkey)
+        return this.userInfo?.userlist?.find(user => user.appkey === Number(this.currentGameAppkey))
     }
     private getRamNumber() {
         for (var e = "", t = 0; t < 40; t++)
@@ -182,8 +182,9 @@ export class ZlvipService {
         const res = await this.request('/web/service', {}, { func: "MP" })
         this.currentToken = res.headers['sid']
         this.currentUserDetail = res.data.data as CurrentUserDetail
-        // console.log(res.data.data);
-
+        if(res.data.code==400){
+            throw new Error(res.data.msg)
+        }
     }
 
     async projectGift(): Promise<Gift[]> {

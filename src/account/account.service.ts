@@ -546,7 +546,7 @@ export class AccountService {
 
       const results = await Promise.all(zlVips.map(async (zlVip) => {
         const vip = new ZlvipService()
-        await vip.init(zlVip?.userInfo as UserInfo, ZlvipService.mzAppKey)
+        await vip.init(zlVip?.userInfo as UserInfo, null)
         const res = await vip.signIn()
 
         return {
@@ -738,7 +738,7 @@ export class AccountService {
   async getHomeGameList(id:number){
     const zlVip = await this.zlVipRepository.findOne({where:{id}})
     const vip = new ZlvipService()
-    await vip.init(zlVip?.userInfo as UserInfo, ZlvipService.mzAppKey)
+    await vip.init(zlVip?.userInfo as UserInfo, null)
     const res = await vip.homeGameList()
     return res
   }
