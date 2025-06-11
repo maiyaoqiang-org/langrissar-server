@@ -573,12 +573,11 @@ export class AccountService {
   async autoGetVipSignReward() {
     try {
       // 直接查询zlVip表获取有userInfo的记录
-      const zlVips = await this.accountRepository
-        .createQueryBuilder('account')
-        .leftJoinAndSelect('account.zlVip', 'zlVip')
-        .where('zlVip.userInfo IS NOT NULL')
-        .getMany()
-        .then(accounts => accounts.map(account => account.zlVip));
+      const zlVips = await this.zlVipRepository.find({
+        where: {
+          userInfo: Not(IsNull())
+        }
+      });
 
       const results = await Promise.allSettled(zlVips.map(async (zlVip) => {
         const vip = new ZlvipService();
