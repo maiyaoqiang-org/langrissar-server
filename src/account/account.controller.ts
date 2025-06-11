@@ -8,6 +8,8 @@ import { QueryAccountDto } from './dto/query-account.dto';
 import { CycleType, CycleTypeDescription, UserInfo, ZlvipService } from './zlvip.service';
 import { QueryZlVipDto } from './dto/query-zlvip.dto';
 import { ZlVipUserService } from './zlvipuser.service';
+import { HomeGameService } from './home-game.service';
+import { HomeGame } from './entities/home-game.entity';
 
 @ApiTags('账号管理')
 @Controller('account')
@@ -15,7 +17,8 @@ export class AccountController {
   constructor(
     private readonly accountService: AccountService,
     private readonly zlVipUserService: ZlVipUserService,
-  ) {}
+    private readonly homeGameService: HomeGameService,
+  ) { }
 
 
   @Get('get-preday-reward')
@@ -30,7 +33,7 @@ export class AccountController {
   @ApiOperation({ summary: '领取每周二雪莉福利' })
   @ApiResponse({ status: 200, description: '领取成功' })
   @ApiResponse({ status: 400, description: '领取失败' })
-  async getWeeklyReward() :Promise<ResultItem[]>{
+  async getWeeklyReward(): Promise<ResultItem[]> {
     return this.accountService.getWeeklyReward();
   }
 
@@ -134,31 +137,31 @@ export class AccountController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建zlvip账号' })
   async createZlVip(@Body() data: { name: string; userInfo: any }) {
-      return this.zlVipUserService.createZlVip(data);
+    return this.zlVipUserService.createZlVip(data);
   }
-  
+
   @Put('zlvip/:id')
   @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: '更新zlvip账号' })
   async updateZlVip(@Param('id') id: number, @Body() data: { name?: string; userInfo?: any }) {
-      return this.zlVipUserService.updateZlVip(id, data);
+    return this.zlVipUserService.updateZlVip(id, data);
   }
-  
+
   @Delete('zlvip/:id')
   @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除zlvip账号' })
   async deleteZlVip(@Param('id') id: number) {
-      return this.zlVipUserService.deleteZlVip(id);
+    return this.zlVipUserService.deleteZlVip(id);
   }
-  
+
   @Post('zlvip/query')
   @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: '分页查询zlvip账号' })
   async queryZlVips(@Body() queryDto: QueryZlVipDto) {
-      return this.zlVipUserService.queryZlVips(queryDto);
+    return this.zlVipUserService.queryZlVips(queryDto);
   }
 
 
@@ -174,7 +177,17 @@ export class AccountController {
   @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: '获取VIP游戏账号列表' })
-  async queryRoleList(@Query('id') id: number,@Query('appKey') appKey: number) {
-    return this.accountService.queryRoleList(id,appKey);
+  async queryRoleList(@Query('id') id: number, @Query('appKey') appKey: number) {
+    return this.accountService.queryRoleList(id, appKey);
+  }
+
+
+  @Get('home-game-list')
+  @ApiOperation({ summary: '获取首页游戏列表' })
+  @ApiResponse({ status: 200, description: '获取成功' })
+  @ApiResponse({ status: 400, description: '获取失败' })
+  @ApiBearerAuth()
+  async findAll(): Promise<HomeGame[]> {
+    return this.homeGameService.findAll();
   }
 }

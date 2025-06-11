@@ -8,13 +8,15 @@ import { FeishuService } from 'src/common/services/feishu.service';
 import { ScraperModule } from 'src/scraper/scraper.module';
 import { ZlVipUserService } from './zlvipuser.service';
 import { ZlVip } from './entities/zlvip.entity';
+import { HomeGame } from './entities/home-game.entity';
+import { HomeGameService } from './home-game.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Account,UsedCdkey,ZlVip]),
+    TypeOrmModule.forFeature([Account,UsedCdkey,ZlVip,HomeGame]),
     ScraperModule,
   ],
   controllers: [AccountController],
-  providers: [AccountService, FeishuService, ZlVipUserService],
+  providers: [AccountService, FeishuService, ZlVipUserService,HomeGameService],
 })
 export class AccountModule {}

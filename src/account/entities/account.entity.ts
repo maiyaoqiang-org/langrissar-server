@@ -24,7 +24,7 @@ export class Account {
   @Column()
   serverid: string;
 
-  @Column({ type: 'int', nullable: true })
+  @Column({ type: 'bigint', nullable: true })
   @Transform(({ value }) => Number(value) || null, { toPlainOnly: true })
   appKey: number | null;
 
