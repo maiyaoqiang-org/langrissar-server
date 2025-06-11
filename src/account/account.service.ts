@@ -496,7 +496,7 @@ export class AccountService {
       await this.feishuService.sendMessage(
         `自动获取CDKey失败：${error.message}`
       );
-      throw error;
+      return [];
     }
   }
 
@@ -512,7 +512,9 @@ export class AccountService {
     try {
       const accounts = await this.findAllVip();
       const getVipAccounts = accounts.filter((account) => account.zlVip?.userInfo);
-      const results = await Promise.all(getVipAccounts.map(async (account) => {
+
+      // 用 Promise.allSettled 替换 Promise.all
+      const results = await Promise.allSettled(getVipAccounts.map(async (account) => {
         const res = await this.getVipReward(cycleType, account);
         return {
           username: account.username,
@@ -520,21 +522,39 @@ export class AccountService {
         };
       }));
 
+      // 统一格式化结果
+      const formattedResults = results.map(result => {
+        if (result.status === 'fulfilled') {
+          return result.value;
+        } else {
+          return {
+            username: '', // 可补充account信息
+            response: null,
+            error: result.reason?.message || String(result.reason),
+          };
+        }
+      });
+
       // 生成飞书通知消息
       let message = `自动获取${label}结果：\n`;
-      results.forEach((result) => {
+      formattedResults.forEach((result) => {
         message += `用户名: ${result.username}\n`;
-        result.response.forEach((reward) => {
-          message += `  礼包名称: ${reward.name}\n`;
-          message += `  礼包描述: ${reward.description}\n`;
-          message += `  获取结果: ${reward.getResult.msg}\n`;
-          message += `  错误码: ${reward.getResult.code}\n`;
-        });
+        if ('error' in result) {
+          message += `  获取结果: ${result.error}\n`;
+          message += `  错误码: \n`;
+        } else if (Array.isArray(result.response)) {
+          result.response.forEach((reward) => {
+            message += `  礼包名称: ${reward.name}\n`;
+            message += `  礼包描述: ${reward.description}\n`;
+            message += `  获取结果: ${reward.getResult?.msg}\n`;
+            message += `  错误码: ${reward.getResult?.code}\n`;
+          });
+        }
         message += '\n';
       });
 
       this.logger.info(
-        inspect(results, { depth: 4 })
+        inspect(formattedResults, { depth: 4 })
       );
 
       // 发送飞书通知
@@ -560,27 +580,45 @@ export class AccountService {
         .getMany()
         .then(accounts => accounts.map(account => account.zlVip));
 
-      const results = await Promise.all(zlVips.map(async (zlVip) => {
-        const vip = new ZlvipService()
-        await vip.init(zlVip?.userInfo as UserInfo, null)
-        const res = await vip.signIn()
+      const results = await Promise.allSettled(zlVips.map(async (zlVip) => {
+        const vip = new ZlvipService();
+        await vip.init(zlVip?.userInfo as UserInfo, null);
+        const res = await vip.signIn();
 
         return {
-          username: zlVip?.name, // 使用zlVip的name字段
+          username: zlVip?.name,
           response: res,
         };
       }));
 
+      // 统一格式化结果
+      const formattedResults = results.map(result => {
+        if (result.status === 'fulfilled') {
+          return result.value;
+        } else {
+          return {
+            username: '', // 你可以补充zlVip信息
+            response: null,
+            error: result.reason?.message || String(result.reason),
+          };
+        }
+      });
+
       this.logger.info(
-        inspect(results, { depth: 4 })
+        inspect(formattedResults, { depth: 4 })
       );
 
       // 生成飞书通知消息
       let message = `紫龙大会员自动签到结果：\n`;
-      results.forEach((result) => {
+      formattedResults.forEach((result) => {
         message += `用户名: ${result.username}\n`;
-        message += `  获取结果: ${result.response.msg}\n`;
-        message += `  错误码: ${result.response.code}\n`;
+        if ('error' in result) {
+          message += `  获取结果: ${result.error}\n`;
+          message += `  错误码: \n`;
+        } else {
+          message += `  获取结果: ${result.response?.msg}\n`;
+          message += `  错误码: ${result.response?.code}\n`;
+        }
         message += '\n';
       });
 
