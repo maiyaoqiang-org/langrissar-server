@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as NacosClient from 'nacos';
 import { LoggerService } from '../common/services/logger.service';
-import {defaultConfigs} from './defaultConfigs';
+import { defaultConfigs } from './defaultConfigs';
 
 @Injectable()
 export class NacosService implements OnModuleInit {
@@ -11,9 +11,7 @@ export class NacosService implements OnModuleInit {
   private configs: Map<string, string> = new Map();
   private defaultConfigs: Record<string, string> = defaultConfigs;
 
-  constructor(private readonly configService: ConfigService) {
-    
-  }
+  constructor(private readonly configService: ConfigService) {}
 
   async onModuleInit() {
     // 仅非本地环境初始化 nacos
@@ -62,10 +60,9 @@ export class NacosService implements OnModuleInit {
       this.configClient.subscribe({
         dataId,
         group,
-        listener: (content: string) => {
-          this.configs.set(dataId, content);
-          this.logger.info(`配置 ${dataId} 已更新`);
-        },
+      }, (content: string) => {
+        this.configs.set(dataId, content);
+        this.logger.info(`配置 ${dataId} 已更新`);
       });
     } catch (error) {
       this.logger.error(`加载配置 ${dataId} 失败: ${error.message}`);
