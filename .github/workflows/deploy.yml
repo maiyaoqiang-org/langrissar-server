@@ -85,6 +85,8 @@ jobs:
               -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
               -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
               -e DB_DATABASE=${{ secrets.DB_DATABASE }} \
+              -e NACOS_SERVER_ADDR=172.17.0.1:8848 \
+              -e NACOS_NAMESPACE=public \
               -e NODE_ENV=production \
               -v /data/langrissar/logs:/app/logs \
               --name langrissar-server-$NEW_COLOR \

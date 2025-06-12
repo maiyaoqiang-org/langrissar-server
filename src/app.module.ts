@@ -18,10 +18,13 @@ import { AccountModule } from './account/account.module';
 import { CozeModule } from './coze/coze.module';
 import { ProxyModule } from './proxy/proxy.module';
 import { OpenAIModule } from './openai/openai.module';
+import { NacosModule } from './nacos/nacos.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot(),
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
     TypeOrmModule.forRoot({
       type: 'mysql',
       host: process.env.DB_HOST || 'localhost',
@@ -42,6 +45,7 @@ import { OpenAIModule } from './openai/openai.module';
     CozeModule,
     ProxyModule, // 添加 ProxyModule
     OpenAIModule,
+    NacosModule, // 添加 NacosModule
   ],
   controllers: [AppController],
   providers: [AppService, JwtStrategy,

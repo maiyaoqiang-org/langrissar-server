@@ -45,6 +45,7 @@
     "dayjs": "^1.11.13",
     "exceljs": "^4.4.0",
     "mysql2": "^3.14.0",
+    "nacos": "^2.6.0",
     "openai": "^4.100.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
