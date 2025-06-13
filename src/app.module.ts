@@ -23,6 +23,7 @@ import { NacosModule } from './nacos/nacos.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
+      envFilePath: '.env.local',
       isGlobal: true,
     }),
     TypeOrmModule.forRoot({

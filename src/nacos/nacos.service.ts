@@ -1,8 +1,17 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as NacosClient from 'nacos';
-import { LoggerService } from '../common/services/logger.service';
-import { defaultConfigs } from './defaultConfigs';
+import { Injectable, OnModuleInit } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import * as NacosClient from "nacos";
+import { LoggerService } from "../common/services/logger.service";
+import { defaultConfigs } from "./defaultConfigs";
+
+console.log(111,process.env.NODE_ENV)
+const useNacos =
+  process.env.NODE_ENV === "production" || process.env.USER_NACOS === "TRUE";
+
+interface NacosConfigOptions {
+  defaultValue?: any;
+  parseJson?: boolean;
+}
 
 @Injectable()
 export class NacosService implements OnModuleInit {
@@ -15,15 +24,15 @@ export class NacosService implements OnModuleInit {
 
   async onModuleInit() {
     // 仅非本地环境初始化 nacos
-    if (process.env.NODE_ENV === 'production') {
+    if (useNacos) {
       try {
         this.configClient = new NacosClient.NacosConfigClient({
-          serverAddr: this.configService.get<string>('NACOS_SERVER_ADDR'),
-          namespace: this.configService.get<string>('NACOS_NAMESPACE'),
+          serverAddr: this.configService.get<string>("NACOS_SERVER_ADDR"),
+          namespace: this.configService.get<string>("NACOS_NAMESPACE"),
         });
 
         await this.configClient.ready();
-        this.logger.info('Nacos 配置客户端初始化成功');
+        this.logger.info("Nacos 配置客户端初始化成功");
       } catch (error) {
         this.logger.error(`Nacos 配置客户端初始化失败: ${error.message}`);
       }
@@ -37,7 +46,7 @@ export class NacosService implements OnModuleInit {
    * @param group Nacos group
    */
   async loadConfig(dataId: string, group: string): Promise<void> {
-    if (process.env.NODE_ENV !== 'production') {
+    if (!useNacos) {
       // 本地环境直接用本地配置
       if (this.defaultConfigs[dataId]) {
         this.configs.set(dataId, this.defaultConfigs[dataId]);
@@ -57,13 +66,16 @@ export class NacosService implements OnModuleInit {
       }
 
       // 监听配置变更
-      this.configClient.subscribe({
-        dataId,
-        group,
-      }, (content: string) => {
-        this.configs.set(dataId, content);
-        this.logger.info(`配置 ${dataId} 已更新`);
-      });
+      this.configClient.subscribe(
+        {
+          dataId,
+          group,
+        },
+        (content: string) => {
+          this.configs.set(dataId, content);
+          this.logger.info(`配置 ${dataId} 已更新`);
+        }
+      );
     } catch (error) {
       this.logger.error(`加载配置 ${dataId} 失败: ${error.message}`);
       // 失败时 fallback 到本地
@@ -77,35 +89,45 @@ export class NacosService implements OnModuleInit {
   /**
    * 获取配置值
    * @param key 配置键名
+   * @param options 配置选项，包含 defaultValue 和 parseJson
    * @returns 配置值
    */
-  getConfig(key: string): string | undefined {
-    return this.configs.get(key) || this.defaultConfigs[key];
+  getConfig(key: string, options?: NacosConfigOptions): any {
+    const { defaultValue = "", parseJson = true } = options || {};
+    const value = this.configs.get(key) || this.defaultConfigs[key] || defaultValue;
+    
+    // 如果启用了JSON解析，尝试将字符串解析为JSON对象
+    if (parseJson && typeof value === 'string') {
+      try {
+        // 检查字符串是否像JSON（以{开头和}结尾，或以[开头和]结尾）
+        if ((value.trim().startsWith('{') && value.trim().endsWith('}')) ||
+            (value.trim().startsWith('[') && value.trim().endsWith(']'))) {
+          return JSON.parse(value);
+        }
+      } catch (error) {
+        this.logger.warn(`配置 ${key} 解析JSON失败: ${error.message}`);
+      }
+    }
+    
+    return value;
   }
 
   /**
    * 异步获取配置值，如果配置未加载则先加载
-   * @param key 配置键名
    * @param dataId Nacos dataId
    * @param group Nacos group
-   * @param defaultValue 默认值
+   * @param options 配置选项，包含 defaultValue 和 parseJson
    * @returns 配置值或默认值
    */
-  async getConfigAsync(dataId: string, group: string, defaultValue: string = ''): Promise<string> {
+  async getConfigAsync(
+    dataId: string,
+    group: string,
+    options?: NacosConfigOptions
+  ): Promise<any> {
     if (!this.configs.has(dataId)) {
       this.logger.info(`配置 ${dataId} 未加载，正在加载...`);
       await this.loadConfig(dataId, group);
     }
-    return this.getConfigWithDefault(dataId, defaultValue);
-  }
-
-  /**
-   * 获取配置值，如果不存在则返回默认值
-   * @param key 配置键名
-   * @param defaultValue 默认值
-   * @returns 配置值或默认值
-   */
-  getConfigWithDefault(key: string, defaultValue: string): string {
-    return this.getConfig(key) || defaultValue;
+    return this.getConfig(dataId, options);
   }
 }
