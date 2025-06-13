@@ -4,9 +4,7 @@ import * as NacosClient from "nacos";
 import { LoggerService } from "../common/services/logger.service";
 import { defaultConfigs } from "./defaultConfigs";
 
-console.log(111,process.env.NODE_ENV)
-const useNacos =
-  process.env.NODE_ENV === "production" || process.env.USER_NACOS === "TRUE";
+const useNacos = false
 
 interface NacosConfigOptions {
   defaultValue?: any;
