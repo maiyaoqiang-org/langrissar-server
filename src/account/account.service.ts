@@ -16,6 +16,7 @@ import { inspect } from "util";
 import * as crypto from 'crypto';
 import { ZlVipUserService } from "./zlvipuser.service";
 import { ZlVip } from "./entities/zlvip.entity";
+import { HomeGame } from "./entities/home-game.entity";
 
 export interface ResultItem {
   username: string;
@@ -137,15 +138,17 @@ export class AccountService {
     });
   }
 
-  async findAllVip(): Promise<Account[]> {
-    return this.accountRepository.find({
-      relations: ['zlVip'],
-      where: {
-        zlVip: {
-          id: Not(IsNull())
-        }
-      }
-    });
+  async findAllVip(): Promise<Array<Account & { homeGame?: HomeGame }>> {
+    return this.accountRepository.createQueryBuilder('account')
+      .leftJoinAndSelect('account.zlVip', 'zlVip')
+      .leftJoinAndMapOne(
+        'account.homeGame',
+        'home_game',
+        'homeGame',
+        'homeGame.appKey = account.appKey'
+      )
+      .where('zlVip.id IS NOT NULL')
+      .getMany();
   }
 
   async getPredayReward(): Promise<ResultItem[]> {
@@ -514,18 +517,20 @@ export class AccountService {
       const getVipAccounts = accounts.filter((account) => account.zlVip?.userInfo);
 
       // 用 Promise.allSettled 替换 Promise.all
-      const results:any[] = [];
+      const results: any[] = [];
       for (const account of getVipAccounts) {
         try {
           const res = await this.getVipReward(cycleType, account);
           results.push({
             username: account.username,
+            game: account.homeGame?.name,
             response: res,
             status: 'fulfilled' // 模拟 Promise.allSettled 的 fulfilled 状态
           });
         } catch (error) {
           results.push({
             username: account.username,
+            game: account.homeGame?.name,
             reason: error.message, // 模拟 Promise.allSettled 的 rejected 状态
             status: 'rejected',
             error: error.message
@@ -536,19 +541,23 @@ export class AccountService {
       // 生成飞书通知消息
       let message = `自动获取${label}结果：\n`;
       results.forEach((result) => {
-        message += `用户名: ${result.username}\n`;
+        message += `${result.username}-${result.game}\n`;
         if ('error' in result) {
-          message += `  获取结果: ${result.error}\n`;
-          message += `  错误码: \n`;
+          message += `  错误结果: ${result.error}\n`;
         } else if (Array.isArray(result.response)) {
-          result.response.forEach((reward) => {
-            message += `  礼包名称: ${reward.name}\n`;
-            message += `  礼包描述: ${reward.description}\n`;
-            message += `  获取结果: ${reward.getResult?.msg}\n`;
-            message += `  错误码: ${reward.getResult?.code}\n`;
-          });
+          if(result.response.length){
+            result.response.forEach((reward) => {
+              message += `  礼包名称: ${reward.name}\n`;
+              message += `  礼包描述: ${reward.description}\n`;
+              message += `  获取结果: ${reward.getResult?.msg}\n`;
+              message += `  错误码: ${reward.getResult?.code}\n`;
+            });
+          }else{
+            message += `  获取结果: 无可领取礼包`
+          }
+          
         }
-        message += '\n';
+        message += '\n\n';
       });
 
       this.logger.info(
