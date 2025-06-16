@@ -1,0 +1,1 @@
+export const FEISHU_WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/77f093f4-a3a6-41cc-8f38-167cdcb49b8c"

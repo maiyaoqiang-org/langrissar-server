@@ -177,7 +177,11 @@ export class ZlvipService {
             data,
             headers
         })
-
+        if(res.data.code===400){
+            console.log(res.data)
+            console.log("400headers:",inspect(headers, { depth: 3 }))
+            console.log("400data:",inspect(data, { depth: 3 }))
+        }
         return res
     }
 

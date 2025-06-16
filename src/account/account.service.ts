@@ -514,30 +514,28 @@ export class AccountService {
       const getVipAccounts = accounts.filter((account) => account.zlVip?.userInfo);
 
       // 用 Promise.allSettled 替换 Promise.all
-      const results = await Promise.allSettled(getVipAccounts.map(async (account) => {
-        const res = await this.getVipReward(cycleType, account);
-        return {
-          username: account.username,
-          response: res,
-        };
-      }));
-
-      // 统一格式化结果
-      const formattedResults = results.map(result => {
-        if (result.status === 'fulfilled') {
-          return result.value;
-        } else {
-          return {
-            username: '', // 可补充account信息
-            response: null,
-            error: result.reason?.message || String(result.reason),
-          };
+      const results:any[] = [];
+      for (const account of getVipAccounts) {
+        try {
+          const res = await this.getVipReward(cycleType, account);
+          results.push({
+            username: account.username,
+            response: res,
+            status: 'fulfilled' // 模拟 Promise.allSettled 的 fulfilled 状态
+          });
+        } catch (error) {
+          results.push({
+            username: account.username,
+            reason: error.message, // 模拟 Promise.allSettled 的 rejected 状态
+            status: 'rejected',
+            error: error.message
+          });
         }
-      });
+      }
 
       // 生成飞书通知消息
       let message = `自动获取${label}结果：\n`;
-      formattedResults.forEach((result) => {
+      results.forEach((result) => {
         message += `用户名: ${result.username}\n`;
         if ('error' in result) {
           message += `  获取结果: ${result.error}\n`;
@@ -554,7 +552,7 @@ export class AccountService {
       });
 
       this.logger.info(
-        inspect(formattedResults, { depth: 4 })
+        inspect(results, { depth: 4 })
       );
 
       // 发送飞书通知

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import { LoggerService } from './logger.service';
-import { NacosService } from '../../nacos/nacos.service';
+import { FEISHU_WEBHOOK_URL } from '../../config/baseConfig';
 
 @Injectable()
 export class FeishuService {
@@ -9,7 +9,7 @@ export class FeishuService {
   private readonly maxRetries = 5;
   private readonly retryDelay = 10000; // 10秒
 
-  constructor(private readonly nacosService: NacosService) {}
+  constructor() {}
 
   sendMessage(content: string) {
     let retryCount = 0;
@@ -19,11 +19,7 @@ export class FeishuService {
       
       try {
         // 从 Nacos 异步获取 webhookUrl，如果未加载则先加载
-        const webhookUrl = await this.nacosService.getConfigAsync(
-          'FEISHU_WEBHOOK_URL',
-          'DEFAULT_GROUP',
-          // 'https://open.feishu.cn/open-apis/bot/v2/hook/77f093f4-a3a6-41cc-8f38-167cdcb49b8c' // 默认值
-        );
+        const webhookUrl = FEISHU_WEBHOOK_URL
         
         const response = await axios.post(webhookUrl, {
           msg_type: 'text',
