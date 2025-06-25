@@ -125,4 +125,13 @@ export class OpenAIController {
   async deleteChatRecord(@Param('id') id: string) {
     return await this.openaiService.removeChatRecord(+id);
   }
+
+  @Public()
+  @Post('sendMessageToWx')
+  async sendMessageToWx(
+    @Body('wx_id') id: string,
+    @Body('content') content: string
+  ) {
+    return await this.openaiService.sendMessageToWx(id,content);
+  }
 }

@@ -11,16 +11,13 @@ export class FeishuService {
 
   constructor() {}
 
-  sendMessage(content: string) {
+  sendMessage(content: string,{webhookUrl}: { webhookUrl: string } = {webhookUrl:FEISHU_WEBHOOK_URL}) {
     let retryCount = 0;
     
     const send = async () => {
       if (retryCount >= this.maxRetries) return;
       
       try {
-        // 从 Nacos 异步获取 webhookUrl，如果未加载则先加载
-        const webhookUrl = FEISHU_WEBHOOK_URL
-        
         const response = await axios.post(webhookUrl, {
           msg_type: 'text',
           content: {

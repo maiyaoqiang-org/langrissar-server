@@ -15,6 +15,8 @@ import * as ExcelJS from 'exceljs'; // 导入 exceljs
 import * as fs from 'fs'; // 导入 fs 模块
 import * as path from 'path'; // 导入 path 模块
 import axios from "axios";
+import { FeishuService } from "@/common/services/feishu.service";
+import { FEISHU_WEBHOOK_URL_COZE_MESSAGE } from "@/config/baseConfig";
 
 @Injectable()
 export class OpenAIService {
@@ -25,7 +27,8 @@ export class OpenAIService {
     @InjectRepository(Openai)
     private openaiRepository: Repository<Openai>,
     @InjectRepository(ChatRecord)
-    private chatRecordRepository: Repository<ChatRecord>
+    private chatRecordRepository: Repository<ChatRecord>,
+    private feishuService: FeishuService
   ) {
     this.openai = new OpenAI({
       apiKey:
@@ -76,9 +79,17 @@ export class OpenAIService {
     const url = `https://www.mxnzp.com/api/wchat_notice/send?content=${base64Content}&wx_id=${wx_id}&app_id=${app_id}&app_secret=${app_secret}`;
 
     axios.get(url).then((res) => {
-      this.logger.info("发送微信消息成功", { res });
+      console.log(res.data)
+      if(res.data.code !== 1) {
+        this.logger.error("发送微信消息失败: " + res.data.msg);
+        this.feishuService.sendMessage(content,{
+          webhookUrl:FEISHU_WEBHOOK_URL_COZE_MESSAGE
+        });
+      }else{
+        this.logger.info("发送微信消息成功: " + res.data.msg);
+      }
     }).catch((err) => {
-      this.logger.error("发送微信消息失败", { err });
+      this.logger.error("发送微信消息失败"+ err.toString());
     })
   }
 
