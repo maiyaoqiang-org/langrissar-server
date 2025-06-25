@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Get, Param, Put, Delete, Request, Res } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Param, Put, Delete, Request, Res, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { OpenAIService } from './openai.service';
 import { ChatRequestDto, ChatResponseDto } from './dto/chat.dto';
@@ -84,11 +84,12 @@ export class OpenAIController {
   @ApiOperation({ summary: 'OpenAI 聊天接口 (使用指定配置)' })
   @ApiResponse({ status: 200, description: '成功' })
   async chatWithConfig(
+    @Query('wx_id') wxId: string, // 从查询参数获取微信ID
     @Param('id') id: string, // 从URL参数获取配置ID
     @Body() chatRequest: ChatRequestDto
   ) {
     // 调用Service中根据ID进行聊天的逻辑
-    return await this.openaiService.chatWithConfig(+id, chatRequest.content);
+    return await this.openaiService.chatWithConfig(+id, chatRequest.content, wxId);
   }
 
   @Post('chat-records/query') // 分页查询聊天记录接口

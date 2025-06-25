@@ -14,6 +14,7 @@ import { QueryChatRecordDto } from "./dto/query-chat-record.dto";
 import * as ExcelJS from 'exceljs'; // 导入 exceljs
 import * as fs from 'fs'; // 导入 fs 模块
 import * as path from 'path'; // 导入 path 模块
+import axios from "axios";
 
 @Injectable()
 export class OpenAIService {
@@ -67,13 +68,29 @@ export class OpenAIService {
     }
   }
 
+  async sendMessageToWx(wx_id: string, content: string) {
+    const app_id = "xjpzjfiwij7nkvqr"
+    const app_secret = "cER9eFVhvN3WMwpL76lezdXcNyBACUkX"
+    // 把content转base64
+    const base64Content = Buffer.from(content).toString('base64');
+    const url = `https://www.mxnzp.com/api/wchat_notice/send?content=${base64Content}&wx_id=${wx_id}&app_id=${app_id}&app_secret=${app_secret}`;
+    
+    axios.get(url).then((res) => {
+      this.logger.info("发送微信消息成功", { res });
+    }).catch((err) => {
+      this.logger.error("发送微信消息失败", { err });
+    })
+  }
+
   /**
    * 根据配置ID进行OpenAI Chat调用
    * @param id OpenAI配置的ID
    * @param chatPayload OpenAI Chat API的请求体
    * @returns OpenAI Chat API的响应
    */
-  async chatWithConfig(id: number, content: string): Promise<any> {
+  async chatWithConfig(id: number, content: string, wx_id?: string): Promise<any> {
+    const startTime = Date.now(); // 记录开始时间
+
     // 1. 根据ID查询OpenAI配置
     const config = await this.openaiRepository.findOne({ where: { id } });
 
@@ -83,35 +100,35 @@ export class OpenAIService {
 
     // 创建聊天记录（pending状态）
     const chatRecord = this.chatRecordRepository.create({
-      openaiConfigId: config.id, // 记录使用的配置ID
+      openaiConfigId: config.id,
       requestContent: content,
       status: "pending",
-      // 如果需要记录用户ID，可以在这里添加 user: req.user 或 userId: req.user.id
     });
     await this.chatRecordRepository.save(chatRecord);
 
     // 2. 使用查询到的配置创建OpenAI客户端
     const openai = new OpenAI({
       apiKey: config.apiKey,
-      baseURL: config.baseURL || "https://api.openai.com/v1", // 使用配置中的baseURL，如果没有则使用默认值
+      baseURL: config.baseURL || "https://api.openai.com/v1",
     });
 
-    // 3. 调用OpenAI Chat API
     try {
       const completion = await openai.chat.completions.create({
         messages: [{ role: "user", content }],
         model: config.model,
       });
-      this.logger.info(
-        "OpenAI API 调用成功" +
-          JSON.stringify(completion)
-      );
+      this.logger.info("OpenAI API 调用成功" + JSON.stringify(completion));
 
       // 更新聊天记录（success状态）
       chatRecord.responseContent = completion.choices[0].message.content;
       chatRecord.status = "success";
       await this.chatRecordRepository.save(chatRecord);
-
+      
+      // 结束前判断是否超时
+      const duration = Date.now() - startTime;
+      if ((duration > 28000) && wx_id) {
+        this.sendMessageToWx(wx_id, completion.choices[0].message.content ||"");
+      }
       return { replyContent: completion.choices[0].message.content };
     } catch (error) {
       this.logger.error("OpenAI API 调用失败" + error.toString());
