@@ -74,7 +74,7 @@ export class OpenAIService {
     // 把content转base64
     const base64Content = Buffer.from(content).toString('base64');
     const url = `https://www.mxnzp.com/api/wchat_notice/send?content=${base64Content}&wx_id=${wx_id}&app_id=${app_id}&app_secret=${app_secret}`;
-    
+
     axios.get(url).then((res) => {
       this.logger.info("发送微信消息成功", { res });
     }).catch((err) => {
@@ -118,16 +118,17 @@ export class OpenAIService {
         model: config.model,
       });
       this.logger.info("OpenAI API 调用成功" + JSON.stringify(completion));
-
+      const duration = Date.now() - startTime;
       // 更新聊天记录（success状态）
       chatRecord.responseContent = completion.choices[0].message.content;
       chatRecord.status = "success";
+      chatRecord.duration = duration; // 记录总用时
+      chatRecord.timeoutNotified = (duration > 28000); // 如果超过28秒
       await this.chatRecordRepository.save(chatRecord);
-      
+
       // 结束前判断是否超时
-      const duration = Date.now() - startTime;
-      if ((duration > 28000) && wx_id) {
-        this.sendMessageToWx(wx_id, completion.choices[0].message.content ||"");
+      if (chatRecord.timeoutNotified && wx_id) {
+        this.sendMessageToWx(wx_id, completion.choices[0].message.content || "");
       }
       return { replyContent: completion.choices[0].message.content };
     } catch (error) {

@@ -35,6 +35,12 @@ export class ChatRecord {
   @Column('text', { nullable: true }) // 如果调用失败，记录错误信息
   errorMessage: string | null; // 错误信息也可能为null，建议同样更改类型
 
+  @Column({ type: 'int', nullable: true, comment: '总用时（毫秒）' })
+  duration?: number;
+
+  @Column({ type: 'boolean', default: false, comment: '是否主动发送超时消息' })
+  timeoutNotified: boolean;
+
   @CreateDateColumn({ type: 'timestamp' })
   @Transform(({ value }) => dayjs(value).format('YYYY-MM-DD HH:mm:ss'), { toPlainOnly: true })
   createdAt: Date;
