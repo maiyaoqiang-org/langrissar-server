@@ -31,6 +31,8 @@ export class CreateAccountDto {
   // userInfo?: string; // 改为对象类型
   @IsOptional()
   zlVipId?: number;
+  @IsOptional()
+  status?: number;
 }
 
 export class UpdateAccountDto {
@@ -67,6 +69,8 @@ export class UpdateAccountDto {
 
   @IsOptional()
   zlVipId?: number;
+  @IsOptional()
+  status?: number;
 }
 
 export class QueryAccountDto {

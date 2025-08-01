@@ -190,4 +190,12 @@ export class AccountController {
   async findAll(): Promise<HomeGame[]> {
     return this.homeGameService.findAll();
   }
+
+  @Put(':id/status')
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '修改账号状态' })
+  async setAccountStatus(@Param('id') id: number, @Body('status') status: number) {
+    return this.accountService.setAccountStatus(id, status);
+  }
 }

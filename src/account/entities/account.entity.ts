@@ -44,6 +44,8 @@ export class Account {
   @Exclude()
   password: string;
 
+  @Column({ type: 'tinyint', default: 1, comment: '账号状态 1启用 0禁用' })
+  status: number;
   // @Column({ type: 'json', nullable: true, comment: '用户信息JSON对象' })
   // @Transform(
   //   ({ value }) => (typeof value === 'string' ? JSON.parse(value) : value),

@@ -11,9 +11,14 @@ import { CreateAccountDto, UpdateAccountDto } from "./dto/account.dto";
 import { QueryAccountDto } from "./dto/query-account.dto";
 import { CronJob } from "cron";
 import { LoggerService } from "../common/services/logger.service";
-import { ZlvipService, CycleType, CycleTypeDescription, UserInfo } from "./zlvip.service"; // 新增：引入 ZlvipService
+import {
+  ZlvipService,
+  CycleType,
+  CycleTypeDescription,
+  UserInfo,
+} from "./zlvip.service"; // 新增：引入 ZlvipService
 import { inspect } from "util";
-import * as crypto from 'crypto';
+import * as crypto from "crypto";
 import { ZlVipUserService } from "./zlvipuser.service";
 import { ZlVip } from "./entities/zlvip.entity";
 import { HomeGame } from "./entities/home-game.entity";
@@ -38,7 +43,7 @@ export class AccountService {
     private feishuService: FeishuService,
     private scraperService: ScraperService,
     @InjectRepository(ZlVip)
-    private zlVipRepository: Repository<ZlVip>,
+    private zlVipRepository: Repository<ZlVip>
   ) {
     this.loadUsedCdkeys();
     this.initCronJobs();
@@ -64,7 +69,7 @@ export class AccountService {
         "0 5 0 * * *",
         () => {
           this.getPredayReward();
-          this.autoGetVipSignReward()
+          this.autoGetVipSignReward();
         },
         null,
         true,
@@ -102,7 +107,7 @@ export class AccountService {
         null,
         true,
         timezone
-      )
+      );
 
       // 每周一凌晨0点01分执行autoGetVipReward
       new CronJob(
@@ -113,7 +118,7 @@ export class AccountService {
         null,
         true,
         timezone
-      )
+      );
     }
   }
 
@@ -130,24 +135,25 @@ export class AccountService {
 
   async findAllMz(): Promise<Account[]> {
     return this.accountRepository.find({
-      relations: ['zlVip'], // 添加关联查询
+      relations: ["zlVip"], // 添加关联查询
       where: [
-        { appKey: ZlvipService.mzAppKey },
-        { appKey: IsNull() }
-      ]
+        { appKey: ZlvipService.mzAppKey, status: 1 },
+        { appKey: IsNull(), status: 1 },
+      ],
     });
   }
 
   async findAllVip(): Promise<Array<Account & { homeGame?: HomeGame }>> {
-    return this.accountRepository.createQueryBuilder('account')
-      .leftJoinAndSelect('account.zlVip', 'zlVip')
+    return this.accountRepository
+      .createQueryBuilder("account")
+      .leftJoinAndSelect("account.zlVip", "zlVip")
       .leftJoinAndMapOne(
-        'account.homeGame',
-        'home_game',
-        'homeGame',
-        'homeGame.appKey = account.appKey'
+        "account.homeGame",
+        "home_game",
+        "homeGame",
+        "homeGame.appKey = account.appKey"
       )
-      .where('zlVip.id IS NOT NULL')
+      .where("zlVip.id IS NOT NULL")
       .getMany();
   }
 
@@ -418,8 +424,12 @@ export class AccountService {
           .map((r) => {
             const mailTitle = r.response?.data?.mailTitle ? "成功" : "失败";
             const giftGoodsMap = r.response?.data?.giftGoodsMap || {};
-            const status = r.response?.status
-            return `${r.username}: 【status:${status}】 ${mailTitle} ${JSON.stringify(giftGoodsMap)}`;
+            const status = r.response?.status;
+            return `${
+              r.username
+            }: 【status:${status}】 ${mailTitle} ${JSON.stringify(
+              giftGoodsMap
+            )}`;
           })
           .join("\n");
 
@@ -444,7 +454,7 @@ export class AccountService {
     }
   }
 
-  // 领取cdkey梦战专属 
+  // 领取cdkey梦战专属
   async autoGetAndUseCdkey(): Promise<string[]> {
     try {
       // 直接调用 scraperService
@@ -504,17 +514,23 @@ export class AccountService {
   }
 
   async getVipReward(cycleType: CycleType, account: Account) {
-    const vip = new ZlvipService()
-    await vip.init(account?.zlVip?.userInfo as UserInfo, account.appKey)
-    const res = await vip.autoProjectGift(cycleType, account.roleid, account.serverid)
-    return res
+    const vip = new ZlvipService();
+    await vip.init(account?.zlVip?.userInfo as UserInfo, account.appKey);
+    const res = await vip.autoProjectGift(
+      cycleType,
+      account.roleid,
+      account.serverid
+    );
+    return res;
   }
 
   async autoGetVipReward(cycleType: CycleType) {
-    const label = `VIP${CycleTypeDescription[cycleType]}奖励`
+    const label = `VIP${CycleTypeDescription[cycleType]}奖励`;
     try {
       const accounts = await this.findAllVip();
-      const getVipAccounts = accounts.filter((account) => account.zlVip?.userInfo);
+      const getVipAccounts = accounts.filter(
+        (account) => account.zlVip?.userInfo
+      );
 
       // 用 Promise.allSettled 替换 Promise.all
       const results: any[] = [];
@@ -525,15 +541,15 @@ export class AccountService {
             username: account.username,
             game: account.homeGame?.name,
             response: res,
-            status: 'fulfilled' // 模拟 Promise.allSettled 的 fulfilled 状态
+            status: "fulfilled", // 模拟 Promise.allSettled 的 fulfilled 状态
           });
         } catch (error) {
           results.push({
             username: account.username,
             game: account.homeGame?.name,
             reason: error.message, // 模拟 Promise.allSettled 的 rejected 状态
-            status: 'rejected',
-            error: error.message
+            status: "rejected",
+            error: error.message,
           });
         }
       }
@@ -542,27 +558,24 @@ export class AccountService {
       let message = `自动获取${label}结果：\n`;
       results.forEach((result) => {
         message += `${result.username}-${result.game}\n`;
-        if ('error' in result) {
+        if ("error" in result) {
           message += `  错误结果: ${result.error}\n`;
         } else if (Array.isArray(result.response)) {
-          if(result.response.length){
+          if (result.response.length) {
             result.response.forEach((reward) => {
               message += `  礼包名称: ${reward.name}\n`;
               message += `  礼包描述: ${reward.description}\n`;
               message += `  获取结果: ${reward.getResult?.msg}\n`;
               message += `  错误码: ${reward.getResult?.code}\n`;
             });
-          }else{
-            message += `  获取结果: 无可领取礼包`
+          } else {
+            message += `  获取结果: 无可领取礼包`;
           }
-          
         }
-        message += '\n\n';
+        message += "\n\n";
       });
 
-      this.logger.info(
-        inspect(results, { depth: 4 })
-      );
+      this.logger.info(inspect(results, { depth: 4 }));
 
       // 发送飞书通知
       await this.feishuService.sendMessage(message);
@@ -582,53 +595,51 @@ export class AccountService {
       // 直接查询zlVip表获取有userInfo的记录
       const zlVips = await this.zlVipRepository.find({
         where: {
-          userInfo: Not(IsNull())
-        }
+          userInfo: Not(IsNull()),
+        },
       });
 
-      const results = await Promise.allSettled(zlVips.map(async (zlVip) => {
-        const vip = new ZlvipService();
-        await vip.init(zlVip?.userInfo as UserInfo, null);
-        const res = await vip.signIn();
+      const results = await Promise.allSettled(
+        zlVips.map(async (zlVip) => {
+          const vip = new ZlvipService();
+          await vip.init(zlVip?.userInfo as UserInfo, null);
+          const res = await vip.signIn();
 
-        return {
-          username: zlVip?.name,
-          response: res,
-        };
-      }));
+          return {
+            username: zlVip?.name,
+            response: res,
+          };
+        })
+      );
 
       // 统一格式化结果
-      const formattedResults = results.map(result => {
-        if (result.status === 'fulfilled') {
+      const formattedResults = results.map((result) => {
+        if (result.status === "fulfilled") {
           return result.value;
         } else {
           return {
-            username: '', // 你可以补充zlVip信息
+            username: "", // 你可以补充zlVip信息
             response: null,
             error: result.reason?.message || String(result.reason),
           };
         }
       });
 
-      this.logger.info(
-        inspect(formattedResults, { depth: 4 })
-      );
+      this.logger.info(inspect(formattedResults, { depth: 4 }));
 
       // 生成飞书通知消息
       let message = `紫龙大会员自动签到结果：\n`;
       formattedResults.forEach((result) => {
         message += `用户名: ${result.username}\n`;
-        if ('error' in result) {
+        if ("error" in result) {
           message += `  获取结果: ${result.error}\n`;
           message += `  错误码: \n`;
         } else {
           message += `  获取结果: ${result.response?.msg}\n`;
           message += `  错误码: ${result.response?.code}\n`;
         }
-        message += '\n';
+        message += "\n";
       });
-
-
 
       // 发送飞书通知
       await this.feishuService.sendMessage(message);
@@ -672,12 +683,12 @@ export class AccountService {
       const existingAccount = await this.accountRepository.findOne({
         where: {
           appKey: createAccountDto.appKey,
-          zlVip: { id: createAccountDto.zlVipId }
-        }
+          zlVip: { id: createAccountDto.zlVipId },
+        },
       });
 
       if (existingAccount) {
-        throw new Error('已存在相同appKey和zlVipId的账号记录');
+        throw new Error("已存在相同appKey和zlVipId的账号记录");
       }
     }
 
@@ -708,12 +719,12 @@ export class AccountService {
       const existingAccount = await this.accountRepository.findOne({
         where: {
           appKey: updateAccountDto.appKey,
-          zlVip: { id: updateAccountDto.zlVipId }
-        }
+          zlVip: { id: updateAccountDto.zlVipId },
+        },
       });
 
       if (existingAccount && existingAccount.id !== id) {
-        throw new Error('已存在相同appKey和zlVipId的账号记录');
+        throw new Error("已存在相同appKey和zlVipId的账号记录");
       }
     }
 
@@ -737,11 +748,11 @@ export class AccountService {
         where: { id: updateAccountDto.zlVipId },
       });
     } else {
-      account.zlVip = null
+      account.zlVip = null;
     }
 
     if (!updateAccountDto.appKey) {
-      account.appKey = null
+      account.appKey = null;
     }
 
     return this.accountRepository.save(account);
@@ -778,7 +789,9 @@ export class AccountService {
     }
 
     if (queryDto.account) {
-      query.andWhere("account.account = :account", { account: queryDto.account });
+      query.andWhere("account.account = :account", {
+        account: queryDto.account,
+      });
     }
 
     if (queryDto.serverid) {
@@ -806,43 +819,51 @@ export class AccountService {
   async getRoleInfo(roleid: string) {
     try {
       // 计算sign值
-      const sign = crypto.createHash('md5')
+      const sign = crypto
+        .createHash("md5")
         .update(`9e5b6610aa8614abb26e0617f09c3d2e${roleid}`)
-        .digest('hex');
+        .digest("hex");
 
-      console.log(sign)
-      console.log(roleid)
+      console.log(sign);
+      console.log(roleid);
 
       const url = `https://activity.zlongame.com/activity/cmn/gmt/getroleinfop.do?roleid=${roleid}&game_id=6&sign=${sign}`;
       const response = await axios.get(url);
 
       return response.data?.roleInfoList;
     } catch (error) {
-      this.logger.error('获取角色信息失败', error);
+      this.logger.error("获取角色信息失败", error);
       throw error;
     }
   }
 
   async getHomeGameList(id: number) {
-    const zlVip = await this.zlVipRepository.findOne({ where: { id } })
-    const vip = new ZlvipService()
-    await vip.init(zlVip?.userInfo as UserInfo, null)
-    const res = await vip.homeGameList()
-    return res
+    const zlVip = await this.zlVipRepository.findOne({ where: { id } });
+    const vip = new ZlvipService();
+    await vip.init(zlVip?.userInfo as UserInfo, null);
+    const res = await vip.homeGameList();
+    return res;
   }
 
   async queryRoleList(id: number, appKey: number) {
-    const zlVip = await this.zlVipRepository.findOne({ where: { id } })
-    const userInfo = zlVip?.userInfo as UserInfo
-    const cAppKey = Number(appKey || ZlvipService.mzAppKey)
-    const vip = new ZlvipService()
-    vip.setUserInfo(userInfo, cAppKey)
+    const zlVip = await this.zlVipRepository.findOne({ where: { id } });
+    const userInfo = zlVip?.userInfo as UserInfo;
+    const cAppKey = Number(appKey || ZlvipService.mzAppKey);
+    const vip = new ZlvipService();
+    vip.setUserInfo(userInfo, cAppKey);
     if (!vip.currentUser) {
-      return []
+      return [];
     }
-    await vip.init(userInfo, cAppKey)
-    const res = await vip.queryRoleList()
-    return res
+    await vip.init(userInfo, cAppKey);
+    const res = await vip.queryRoleList();
+    return res;
   }
 
+  async setAccountStatus(id: number, status: number) {
+    const account = await this.accountRepository.findOneBy({ id });
+    if (!account) throw new BadRequestException("账号不存在");
+    account.status = status;
+    await this.accountRepository.save(account);
+    return account
+  }
 }
