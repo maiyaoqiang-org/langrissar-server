@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { UsedCdkeyService } from './used-cdkey.service';
 import { UsedCdkey } from './entities/used-cdkey.entity';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { Roles } from '@/auth/roles.decorator';
 import { JwtAuthGuard } from '@/auth/jwt-auth.guard';
 import { RolesGuard } from '@/auth/roles.guard';
@@ -21,10 +21,26 @@ export class UsedCdkeyController {
   }
 
   @Get()
-  @ApiOperation({ summary: '获取所有使用记录' })
-  @ApiResponse({ status: 200, description: '获取成功', type: [UsedCdkey] })
-  async findAll(): Promise<UsedCdkey[]> {
-    return await this.usedCdkeyService.findAll();
+  @ApiOperation({ summary: '获取使用记录（带分页，可选CDKEY过滤）' })
+  @ApiResponse({ status: 200, description: '获取成功' })
+  @ApiQuery({ name: 'cdkey', required: false, type: String, description: 'CDKEY关键字，不传则查询所有' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: '页码，默认1' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: '每页条数，默认10' })
+  async findAll(
+    @Query('cdkey') cdkey?: string,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '10'
+  ): Promise<{
+    data: UsedCdkey[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    return await this.usedCdkeyService.findAll(
+      parseInt(page) || 1,
+      parseInt(limit) || 10,
+      cdkey
+    );
   }
 
   @Get(':id')
@@ -33,13 +49,6 @@ export class UsedCdkeyController {
   @ApiResponse({ status: 404, description: '记录未找到' })
   async findOne(@Param('id') id: string): Promise<UsedCdkey> {
     return await this.usedCdkeyService.findOne(+id);
-  }
-
-  @Get('search/by-cdkey')
-  @ApiOperation({ summary: '根据CDKEY搜索记录' })
-  @ApiResponse({ status: 200, description: '搜索成功', type: [UsedCdkey] })
-  async findByCdkey(@Query('cdkey') cdkey: string): Promise<UsedCdkey[]> {
-    return await this.usedCdkeyService.findByCdkey(cdkey);
   }
 
   @Put(':id')

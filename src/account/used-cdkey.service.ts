@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Like } from 'typeorm';
 import { UsedCdkey } from './entities/used-cdkey.entity';
 
 @Injectable()
@@ -16,11 +16,28 @@ export class UsedCdkeyService {
     return await this.usedCdkeyRepository.save(usedCdkey);
   }
 
-  // 获取所有使用记录
-  async findAll(): Promise<UsedCdkey[]> {
-    return await this.usedCdkeyRepository.find({
-      order: { usedAt: 'DESC' }
+  // 获取使用记录（带分页，可选CDKEY过滤）
+  async findAll(page: number = 1, limit: number = 10, cdkey?: string): Promise<{
+    data: UsedCdkey[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const whereCondition = cdkey ? { cdkey: Like(`%${cdkey}%`) } : {};
+    
+    const [data, total] = await this.usedCdkeyRepository.findAndCount({
+      where: whereCondition,
+      order: { usedAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
+    
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
   }
 
   // 根据ID获取单条记录
@@ -30,14 +47,6 @@ export class UsedCdkeyService {
       throw new NotFoundException(`使用记录 #${id} 未找到`);
     }
     return usedCdkey;
-  }
-
-  // 根据CDKEY获取记录
-  async findByCdkey(cdkey: string): Promise<UsedCdkey[]> {
-    return await this.usedCdkeyRepository.find({
-      where: { cdkey },
-      order: { usedAt: 'DESC' }
-    });
   }
 
   // 更新记录
