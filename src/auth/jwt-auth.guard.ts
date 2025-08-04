@@ -30,7 +30,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
   handleRequest(err, user, info) {
     if (err || !user) {
-      throw err || new UnauthorizedException('未授权访问');
+      throw err || new UnauthorizedException('登录过期或未登录，请重新登录');
     }
     return user;
   }
