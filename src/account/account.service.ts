@@ -485,6 +485,9 @@ export class AccountService {
     try {
       cdkeys = await this.getCdkeysFromScraper();
     } catch (scraperError) {
+      await this.feishuService.sendMessage(
+        `scraper自动获取CDKey失败：${scraperError.message}`
+      );
       try {
         cdkeys = await this.getCdkeysFromLeanCloud();
       } catch (leanCloudError) {
