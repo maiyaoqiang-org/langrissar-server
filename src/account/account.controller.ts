@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Query, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Query, Param, Body, UseGuards } from '@nestjs/common';
 import { AccountService } from './account.service';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ResultItem } from './account.service';  // 添加这行导入语句
@@ -10,9 +10,13 @@ import { QueryZlVipDto } from './dto/query-zlvip.dto';
 import { ZlVipUserService } from './zlvipuser.service';
 import { HomeGameService } from './home-game.service';
 import { HomeGame } from './entities/home-game.entity';
+import { JwtAuthGuard } from '@/auth/jwt-auth.guard';
+import { RolesGuard } from '@/auth/roles.guard';
 
 @ApiTags('账号管理')
 @Controller('account')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin')
 export class AccountController {
   constructor(
     private readonly accountService: AccountService,

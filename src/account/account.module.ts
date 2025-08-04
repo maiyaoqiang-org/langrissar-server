@@ -11,13 +11,15 @@ import { ZlVip } from './entities/zlvip.entity';
 import { HomeGame } from './entities/home-game.entity';
 import { HomeGameService } from './home-game.service';
 import { LeanCloudService } from './leancloud.service';
+import { UsedCdkeyService } from './used-cdkey.service';
+import { UsedCdkeyController } from './used-cdkey.controller';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Account,UsedCdkey,ZlVip,HomeGame]),
     ScraperModule,
   ],
-  controllers: [AccountController],
-  providers: [AccountService, FeishuService, ZlVipUserService, HomeGameService, LeanCloudService],
+  controllers: [AccountController, UsedCdkeyController],
+  providers: [AccountService, FeishuService, ZlVipUserService, HomeGameService, LeanCloudService, UsedCdkeyService],
 })
 export class AccountModule {}

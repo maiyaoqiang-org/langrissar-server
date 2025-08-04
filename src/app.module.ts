@@ -2,12 +2,12 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
+import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { HeroModule } from './hero/hero.module';
 import { UserModule } from './user/user.module';
 import { JwtStrategy } from './auth/jwt.strategy';
-import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { APP_FILTER } from '@nestjs/core';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -24,7 +24,7 @@ import { NacosModule } from './nacos/nacos.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env.local', '.env'], // 优先加载 .env.local，然后是 .env
+      envFilePath: ['.env.local', '.env'],
     }),
     TypeOrmModule.forRoot({
       type: 'mysql',
@@ -34,7 +34,7 @@ import { NacosModule } from './nacos/nacos.module';
       password: process.env.DB_PASSWORD || '123456',
       database: process.env.DB_DATABASE || 'langrissar',
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      synchronize: false, // 关闭自动同步，使用迁移管理
+      synchronize: false,
       autoLoadEntities: true,
     }),
     HeroModule,
@@ -44,12 +44,14 @@ import { NacosModule } from './nacos/nacos.module';
     ScheduleModule.forRoot(),
     AccountModule,
     CozeModule,
-    ProxyModule, // 添加 ProxyModule
+    ProxyModule,
     OpenAIModule,
-    NacosModule, // 添加 NacosModule
+    NacosModule,
   ],
   controllers: [AppController],
-  providers: [AppService, JwtStrategy,
+  providers: [
+    AppService,
+    JwtStrategy,
     {
       provide: APP_INTERCEPTOR,
       useClass: TransformInterceptor,
