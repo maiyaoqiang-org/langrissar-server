@@ -22,6 +22,7 @@ import * as crypto from "crypto";
 import { ZlVipUserService } from "./zlvipuser.service";
 import { ZlVip } from "./entities/zlvip.entity";
 import { HomeGame } from "./entities/home-game.entity";
+import { LeanCloudService } from "./leancloud.service";
 
 export interface ResultItem {
   username: string;
@@ -43,7 +44,8 @@ export class AccountService {
     private feishuService: FeishuService,
     private scraperService: ScraperService,
     @InjectRepository(ZlVip)
-    private zlVipRepository: Repository<ZlVip>
+    private zlVipRepository: Repository<ZlVip>,
+    private leanCloudService: LeanCloudService
   ) {
     this.loadUsedCdkeys();
     this.initCronJobs();
@@ -454,19 +456,52 @@ export class AccountService {
     }
   }
 
-  // 领取cdkey梦战专属
-  async autoGetAndUseCdkey(): Promise<string[]> {
+  private async getCdkeysFromScraper(): Promise<string[]> {
     try {
-      // 直接调用 scraperService
       const scraperResult = await this.scraperService.scrape({
         url: "https://wiki.biligame.com/langrisser/Giftcode",
         selector: ".cdkey-table .bikited-copy",
       });
-
-      // 处理返回结果，过滤掉 null 值并转换类型
-      const cdkeys = scraperResult.content.filter(
+      return scraperResult.content.filter(
         (item): item is string => item !== null
       );
+    } catch (error) {
+      this.logger.error("爬虫获取CDKey失败", error);
+      throw error;
+    }
+  }
+  private async getCdkeysFromLeanCloud(): Promise<string[]> {
+    try {
+      return await this.leanCloudService.getValidGiftCodes();
+    } catch (error) {
+      this.logger.error("LeanCloud获取CDKey失败", error);
+      throw error;
+    }
+  }
+
+  // 单独写个获取cdkey逻辑
+  async autoGetAllCdKey() : Promise<string[]> {
+    let cdkeys: string[] = [];
+    try {
+      cdkeys = await this.getCdkeysFromScraper();
+    } catch (scraperError) {
+      try {
+        cdkeys = await this.getCdkeysFromLeanCloud();
+      } catch (leanCloudError) {
+        this.logger.error("CDKey获取全部失败", leanCloudError);
+        throw new Error("CDKey获取失败");
+      }
+    }
+    // 去重
+    cdkeys = [...new Set(cdkeys)];
+    return cdkeys;
+  }
+
+  // 领取cdkey梦战专属
+  async autoGetAndUseCdkey(): Promise<string[]> {
+    try {
+      const cdkeys: string[] =  await this.autoGetAllCdKey();
+
       const results: string[] = [];
       const skippedCdkeys: string[] = [];
 
@@ -864,6 +899,6 @@ export class AccountService {
     if (!account) throw new BadRequestException("账号不存在");
     account.status = status;
     await this.accountRepository.save(account);
-    return account
+    return account;
   }
 }

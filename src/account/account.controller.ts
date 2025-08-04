@@ -198,4 +198,10 @@ export class AccountController {
   async setAccountStatus(@Param('id') id: number, @Body('status') status: number) {
     return this.accountService.setAccountStatus(id, status);
   }
+
+  @Get('getAllCDkey')
+  @ApiOperation({ summary: '获取所有cdkey' })
+  async getAllCdkey() {
+    return this.accountService.autoGetAllCdKey();
+  }
 }

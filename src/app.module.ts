@@ -24,6 +24,7 @@ import { NacosModule } from './nacos/nacos.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: ['.env.local', '.env'], // 优先加载 .env.local，然后是 .env
     }),
     TypeOrmModule.forRoot({
       type: 'mysql',

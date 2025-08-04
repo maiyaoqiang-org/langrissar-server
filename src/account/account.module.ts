@@ -10,6 +10,7 @@ import { ZlVipUserService } from './zlvipuser.service';
 import { ZlVip } from './entities/zlvip.entity';
 import { HomeGame } from './entities/home-game.entity';
 import { HomeGameService } from './home-game.service';
+import { LeanCloudService } from './leancloud.service';
 
 @Module({
   imports: [
@@ -17,6 +18,6 @@ import { HomeGameService } from './home-game.service';
     ScraperModule,
   ],
   controllers: [AccountController],
-  providers: [AccountService, FeishuService, ZlVipUserService,HomeGameService],
+  providers: [AccountService, FeishuService, ZlVipUserService, HomeGameService, LeanCloudService],
 })
 export class AccountModule {}
