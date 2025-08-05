@@ -80,7 +80,7 @@ export class AccountService {
 
       // 每周二早上9点执行获取雪莉福利
       new CronJob(
-        "0 0 9 * * 2",
+        "0 5 0 * * 2",
         () => {
           this.getWeeklyReward();
         },
