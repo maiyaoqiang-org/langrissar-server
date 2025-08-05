@@ -68,7 +68,7 @@ export class AccountService {
 
       // 每天凌晨0点01分执行获取每日福利
       new CronJob(
-        "0 5 0 * * *",
+        "0 1 0 * * *",
         () => {
           this.getPredayReward();
           this.autoGetVipSignReward();
@@ -80,7 +80,7 @@ export class AccountService {
 
       // 每周二早上9点执行获取雪莉福利
       new CronJob(
-        "0 5 0 * * 2",
+        "0 1 0 * * 2",
         () => {
           this.getWeeklyReward();
         },
@@ -91,7 +91,7 @@ export class AccountService {
 
       // 每月8-14号凌晨0点36分执行获取每月福利
       new CronJob(
-        "0 5 0 8-14 * *",
+        "0 1 0 8-14 * *",
         () => {
           this.getMonthlyReward();
         },
@@ -102,7 +102,7 @@ export class AccountService {
 
       // 每月1号凌晨0点24分执行领取autoGetVipReward
       new CronJob(
-        "0 5 0 1 * *",
+        "0 1 0 1 * *",
         () => {
           this.autoGetVipReward(CycleType.Monthly);
         },
@@ -113,7 +113,7 @@ export class AccountService {
 
       // 每周一凌晨0点01分执行autoGetVipReward
       new CronJob(
-        "0 5 0 * * 1",
+        "0 1 0 * * 1",
         () => {
           this.autoGetVipReward(CycleType.Weekly);
         },
