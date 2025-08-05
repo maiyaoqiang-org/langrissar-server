@@ -208,4 +208,15 @@ export class AccountController {
   async getAllCdkey() {
     return this.accountService.autoGetAllCdKey();
   }
+
+  @Get('get-cdkey-reward-for-account')
+  @ApiOperation({ summary: '为指定账号领取CDKey奖励' })
+  @ApiResponse({ status: 200, description: '领取成功' })
+  @ApiResponse({ status: 400, description: '领取失败' })
+  async getCdkeyRewardForAccount(
+    @Query('cdkey') cdkey: string,
+    @Query('accountId') accountId: number
+  ): Promise<ResultItem> {
+    return this.accountService.getCdkeyRewardForAccount(cdkey, accountId);
+  }
 }

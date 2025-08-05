@@ -29,6 +29,7 @@ export interface ResultItem {
   success: boolean;
   response?: any;
   error?: string;
+  isValid?: boolean;
 }
 
 @Injectable()
@@ -47,7 +48,6 @@ export class AccountService {
     private zlVipRepository: Repository<ZlVip>,
     private leanCloudService: LeanCloudService
   ) {
-    this.loadUsedCdkeys();
     this.initCronJobs();
   }
 
@@ -124,14 +124,47 @@ export class AccountService {
     }
   }
 
-  // 从数据库加载已使用的CDKey
-  private async loadUsedCdkeys() {
+
+  /**
+   * 为指定账号领取CDKey的核心逻辑
+   * @param cdkey CDKey兑换码
+   * @param account 账号信息
+   * @returns 领取结果
+   */
+  private async redeemCdkeyForAccount(
+    cdkey: string,
+    account: Account
+  ): Promise<ResultItem> {
+    const params = {
+      appkey: "1486458782785",
+      card_channel: "0123456789",
+      type: "2",
+      _: "1710731751697",
+      card_user: account.roleid,
+      card_role: account.roleid,
+      card_server: account.serverid,
+      card_code: cdkey,
+    };
+
     try {
-      const usedCdkeys = await this.usedCdkeyRepository.find();
-      usedCdkeys.forEach((item) => this.usedCdkeys.add(item.cdkey));
-      this.logger.info(`已从数据库加载 ${usedCdkeys.length} 个已使用的CDKey`);
+      const url = `https://activity.zlongame.com/activity/cmn/card/csmweb.do?${querystring.stringify(
+        params
+      )}`;
+      const response = await axios.get(url);
+      
+      return {
+        username: account.username,
+        success: true,
+        response: response.data,
+        isValid: Boolean(response?.data?.success)
+      };
     } catch (error) {
-      this.logger.error("加载已使用CDKey失败", error);
+      return {
+        username: account.username,
+        success: false,
+        error: error.message,
+        isValid: false,
+      };
     }
   }
 
@@ -368,49 +401,65 @@ export class AccountService {
     }
   }
 
+  /**
+   * 为指定账号领取CDKey奖励（不检查usedCdkeys）
+   * @param cdkey CDKey兑换码
+   * @param accountId 账号ID
+   * @returns 领取结果
+   */
+  async getCdkeyRewardForAccount(
+    cdkey: string,
+    accountId: number
+  ): Promise<ResultItem> {
+    try {
+      // 根据accountId查询指定账号
+      const account = await this.accountRepository.findOne({
+        where: { id: accountId },
+      });
+
+      if (!account) {
+        throw new BadRequestException(`未找到ID为 ${accountId} 的账号`);
+      }
+
+      // 直接调用核心领取逻辑，不检查usedCdkeys
+      const result = await this.redeemCdkeyForAccount(cdkey, account);
+
+      this.logger.info(
+        JSON.stringify({
+          message: `为账号 ${account.username} 领取CDKey(${cdkey})结果`,
+          result,
+        })
+      );
+
+      return result;
+    } catch (error) {
+      this.logger.error(`为账号领取CDKey失败`, error);
+      throw error;
+    }
+  }
+
   async getCdkeyReward(cdkey: string): Promise<ResultItem[]> {
     try {
       const accounts = await this.findAllMz();
       const results: ResultItem[] = [];
 
-      // 先检查是否已经使用过这个 CDKey
-      if (this.usedCdkeys.has(cdkey)) {
+      // 改为直接查询数据库检查CDKey是否已使用
+      const existingCdkey = await this.usedCdkeyRepository.findOne({
+        where: { cdkey }
+      });
+      
+      if (existingCdkey) {
         this.logger.info(`CDKey ${cdkey} 已经使用过，跳过`);
         return results;
       }
-
+  
+      // 使用抽离的核心逻辑为所有账号领取
       for (const account of accounts) {
-        const params = {
-          appkey: "1486458782785",
-          card_channel: "0123456789",
-          type: "2",
-          _: "1710731751697",
-          card_user: account.roleid,
-          card_role: account.roleid,
-          card_server: account.serverid,
-          card_code: cdkey,
-        };
-
-        try {
-          const url = `https://activity.zlongame.com/activity/cmn/card/csmweb.do?${querystring.stringify(
-            params
-          )}`;
-          const response = await axios.get(url);
-          results.push({
-            username: account.username,
-            success: true,
-            response: response.data,
-          });
-        } catch (error) {
-          results.push({
-            username: account.username,
-            success: false,
-            error: error.message,
-          });
-        }
+        const result = await this.redeemCdkeyForAccount(cdkey, account);
+        results.push(result);
       }
 
-      // 整理消息内容
+      // 整理消息内容（保持不变）
       const successCount = results.filter(
         (r) => r.response?.data?.mailTitle
       ).length;
@@ -503,15 +552,19 @@ export class AccountService {
   // 领取cdkey梦战专属
   async autoGetAndUseCdkey(): Promise<string[]> {
     try {
-      const cdkeys: string[] =  await this.autoGetAllCdKey();
+      const cdkeys: string[] = await this.autoGetAllCdKey();
 
       const results: string[] = [];
       const skippedCdkeys: string[] = [];
 
       // 遍历所有 CDKey
       for (const cdkey of cdkeys) {
-        // 检查是否已经使用过
-        if (this.usedCdkeys.has(cdkey)) {
+        // 改为直接查询数据库检查CDKey是否已使用
+        const existingCdkey = await this.usedCdkeyRepository.findOne({
+          where: { cdkey }
+        });
+        
+        if (existingCdkey) {
           skippedCdkeys.push(cdkey);
           this.logger.info(`CDKey ${cdkey} 已经使用过，跳过`);
           continue;
@@ -694,20 +747,18 @@ export class AccountService {
 
   async clearUsedCdkeys(): Promise<{ success: boolean; count: number }> {
     try {
+       // 获取数据库中的记录数量用于日志
+      const count = await this.usedCdkeyRepository.count();
       // 清空数据库中的记录
       const result = await this.usedCdkeyRepository.clear();
 
-      // 清空内存缓存
-      const cacheSize = this.usedCdkeys.size;
-      this.usedCdkeys.clear();
-
       // 发送飞书通知
-      const message = `清除CDKey缓存成功：\n已清除 ${cacheSize} 个缓存记录`;
+      const message = `清除CDKey缓存成功：\n已清除 ${count} 个记录`;
       await this.feishuService.sendMessage(message);
 
       return {
         success: true,
-        count: cacheSize,
+        count: count,
       };
     } catch (error) {
       this.logger.error("清除CDKey缓存失败", error);
