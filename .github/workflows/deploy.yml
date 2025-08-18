@@ -48,7 +48,6 @@ jobs:
             docker pull crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest
             
            
-            
             # 确定当前运行的容器和端口，以及新容器的端口
             BLUE_PORT=6088
             GREEN_PORT=6089
@@ -98,8 +97,8 @@ jobs:
             # 等待新容器启动并健康检查
             echo "等待新容器 langrissar-server-$NEW_COLOR (端口 $NEW_PORT) 启动并进行健康检查..."
             HEALTH_CHECK_URL="http://127.0.0.1:$NEW_PORT/"
-            MAX_ATTEMPTS=20 # 最多尝试10次
-            RETRY_INTERVAL=10 # 每次尝试间隔6秒 (总共最多等待60秒)
+            MAX_ATTEMPTS=20 # 最多尝试20次
+            RETRY_INTERVAL=10 # 每次尝试间隔10秒
             ATTEMPT_NUM=0
             
             until [ $ATTEMPT_NUM -ge $MAX_ATTEMPTS ]
@@ -134,21 +133,70 @@ jobs:
               
               # 重新加载Nginx配置
               echo "重新加载Nginx配置..."
-              sudo nginx -s reload
+              NGINX_RELOAD_SUCCESS=false
               
-              echo "流量已切换到 langrissar-server-$NEW_COLOR"
+              # 检查nginx是否正在运行
+              if sudo systemctl is-active --quiet nginx; then
+                  # 如果nginx正在运行，使用reload命令
+                  if sudo nginx -s reload; then
+                      NGINX_RELOAD_SUCCESS=true
+                  else
+                      echo "nginx重新加载失败，尝试重启nginx服务..."
+                      if sudo systemctl restart nginx; then
+                          NGINX_RELOAD_SUCCESS=true
+                      else
+                          echo "nginx重启失败"
+                      fi
+                  fi
+              else
+                  # 如果nginx没有运行，直接启动
+                  echo "nginx未运行，启动nginx服务..."
+                  if sudo systemctl start nginx; then
+                      NGINX_RELOAD_SUCCESS=true
+                  else
+                      echo "nginx启动失败"
+                  fi
+              fi
               
-              # 停止旧容器 (在流量切换后，可以安全停止)
-              echo "停止旧容器 langrissar-server-$CURRENT_COLOR..."
-              docker stop langrissar-server-$CURRENT_COLOR || true
-              # docker rm langrissar-server-$CURRENT_COLOR || true # 可选：立即删除或保留一段时间
-              
-              # 发送部署成功飞书通知
-              FEISHU_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/77f093f4-a3a6-41cc-8f38-167cdcb49b8c"
-              MESSAGE="✅ 部署成功: langrissar-server 已更新到 $NEW_COLOR 版本 (端口 $NEW_PORT)。"
-              curl -X POST -H "Content-Type: application/json" -d '{"msg_type":"text","content":{"text":"'"$MESSAGE"'"}}' $FEISHU_WEBHOOK_URL
-              
-              echo "部署完成，当前活动容器: langrissar-server-$NEW_COLOR"
+              # 检查nginx操作是否成功
+              if [ "$NGINX_RELOAD_SUCCESS" = true ]; then
+                echo "流量已切换到 langrissar-server-$NEW_COLOR"
+                
+                # 停止旧容器
+                echo "停止旧容器 langrissar-server-$CURRENT_COLOR..."
+                docker stop langrissar-server-$CURRENT_COLOR || true
+                
+                # 发送部署成功飞书通知
+                FEISHU_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/77f093f4-a3a6-41cc-8f38-167cdcb49b8c"
+                MESSAGE="✅ 部署成功: langrissar-server 已更新到 $NEW_COLOR 版本 (端口 $NEW_PORT)。"
+                curl -X POST -H "Content-Type: application/json" -d '{"msg_type":"text","content":{"text":"'"$MESSAGE"'"}}' $FEISHU_WEBHOOK_URL
+                
+                echo "部署完成，当前活动容器: langrissar-server-$NEW_COLOR"
+              else
+                echo "nginx配置重新加载失败，回滚nginx配置并保持原容器运行"
+                
+                # 回滚nginx配置到原来的端口
+                echo "回滚Nginx upstream配置到端口 $CURRENT_PORT..."
+                sudo sed -i "s/server 127.0.0.1:[0-9]\{4\};/server 127.0.0.1:$CURRENT_PORT;/g" /etc/nginx/conf.d/langrissar-upstream.conf
+                
+                # 尝试重新加载原始配置
+                if sudo systemctl is-active --quiet nginx; then
+                    sudo nginx -s reload || sudo systemctl restart nginx
+                else
+                    sudo systemctl start nginx
+                fi
+                
+                # 停止新容器（因为部署失败）
+                echo "停止新容器 langrissar-server-$NEW_COLOR..."
+                docker stop langrissar-server-$NEW_COLOR || true
+                
+                # 发送部署失败飞书通知
+                FEISHU_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/77f093f4-a3a6-41cc-8f38-167cdcb49b8c"
+                MESSAGE="❌ 部署失败: nginx配置重新加载失败，已回滚到原容器 $CURRENT_COLOR (端口 $CURRENT_PORT)。"
+                curl -X POST -H "Content-Type: application/json" -d '{"msg_type":"text","content":{"text":"'"$MESSAGE"'"}}' $FEISHU_WEBHOOK_URL
+                
+                exit 1
+              fi
             else
               echo "新容器 langrissar-server-$NEW_COLOR 启动失败或未通过健康检查 (最后状态码: $HTTP_STATUS)。保持旧容器 langrissar-server-$CURRENT_COLOR 运行。"
               
