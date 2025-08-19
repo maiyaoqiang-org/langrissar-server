@@ -151,7 +151,7 @@ export class AccountService {
         params
       )}`;
       const response = await axios.get(url);
-      
+
       return {
         username: account.username,
         success: true,
@@ -278,7 +278,21 @@ export class AccountService {
           const url = `https://activity.zlongame.com/activity/cmn/lot/wheel.do?${querystring.stringify(
             params
           )}`;
-          const response = await axios.get(url);
+          const response = await axios.get(url, {
+            headers: {
+              'Host': "activity.zlongame.com",
+              'Connection': "keep-alive",
+              'Accept': 'application/json, text/javascript, */*; q=0.01',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 NetType/WIFI MicroMessenger/7.0.20.1781(0x6700143B) WindowsWechat(0x63090c37) XWEB/14315 Flue',
+              'Origin': "https://activity.zlongame.com",
+              'Sec-Fetch-Site': 'same-site',
+              'Sec-Fetch-Mode': 'cors',
+              'Sec-Fetch-Dest': 'empty',
+              'Referer': 'https://mz.zlongame.com/',
+              'Accept-Encoding': 'gzip, deflate, br',
+              'Accept-Language': 'zh-CN,zh;q=0.9',
+            }
+          });
           results.push({
             username: account.username,
             success: true,
@@ -447,12 +461,12 @@ export class AccountService {
       const existingCdkey = await this.usedCdkeyRepository.findOne({
         where: { cdkey }
       });
-      
+
       if (existingCdkey) {
         this.logger.info(`CDKey ${cdkey} 已经使用过，跳过`);
         return results;
       }
-  
+
       // 使用抽离的核心逻辑为所有账号领取
       for (const account of accounts) {
         const result = await this.redeemCdkeyForAccount(cdkey, account);
@@ -476,11 +490,10 @@ export class AccountService {
             const mailTitle = r.response?.data?.mailTitle ? "成功" : "失败";
             const giftGoodsMap = r.response?.data?.giftGoodsMap || {};
             const status = r.response?.status;
-            return `${
-              r.username
-            }: 【status:${status}】 ${mailTitle} ${JSON.stringify(
-              giftGoodsMap
-            )}`;
+            return `${r.username
+              }: 【status:${status}】 ${mailTitle} ${JSON.stringify(
+                giftGoodsMap
+              )}`;
           })
           .join("\n");
 
@@ -529,7 +542,7 @@ export class AccountService {
   }
 
   // 单独写个获取cdkey逻辑
-  async autoGetAllCdKey() : Promise<string[]> {
+  async autoGetAllCdKey(): Promise<string[]> {
     let cdkeys: string[] = [];
     try {
       cdkeys = await this.getCdkeysFromScraper();
@@ -563,7 +576,7 @@ export class AccountService {
         const existingCdkey = await this.usedCdkeyRepository.findOne({
           where: { cdkey }
         });
-        
+
         if (existingCdkey) {
           skippedCdkeys.push(cdkey);
           this.logger.info(`CDKey ${cdkey} 已经使用过，跳过`);
@@ -747,7 +760,7 @@ export class AccountService {
 
   async clearUsedCdkeys(): Promise<{ success: boolean; count: number }> {
     try {
-       // 获取数据库中的记录数量用于日志
+      // 获取数据库中的记录数量用于日志
       const count = await this.usedCdkeyRepository.count();
       // 清空数据库中的记录
       const result = await this.usedCdkeyRepository.clear();
