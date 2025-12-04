@@ -1,2 +1,2 @@
-export const FEISHU_WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/77f093f4-a3a6-41cc-8f38-167cdcb49b8c"
+export const FEISHU_WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/71e11faf-9eb4-40e3-9469-6456237497cd"
 export const FEISHU_WEBHOOK_URL_COZE_MESSAGE = "https://open.feishu.cn/open-apis/bot/v2/hook/a5ab85a8-45d7-440b-b899-f875ca095339"
