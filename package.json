@@ -10,6 +10,7 @@
     "typeorm": "typeorm-ts-node-commonjs",
     "migration:generate": "npm run typeorm -- migration:generate ./src/migrations/UserMigration -d src/config/ormconfig.ts",
     "migration:run": "dotenv -e .env -- npm run typeorm -- migration:run -d src/config/ormconfig.ts",
+    "migration:run:test": "dotenv -e .env.test.local -- npm run typeorm -- migration:run -d src/config/ormconfig.ts",
     "migration:run:prod": "dotenv -e .env.prod.local -- npm run typeorm -- migration:run -d src/config/ormconfig.ts",
     "migration:revert": "npm run typeorm -- migration:revert -d src/config/ormconfig.ts",
     "docker-run": "docker-compose up -d",

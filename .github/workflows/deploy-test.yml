@@ -1,0 +1,120 @@
+name: Deploy to Test Environment
+
+on:
+  push:
+    branches:
+      - test
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Aliyun ACR
+        uses: docker/login-action@v2
+        with:
+          registry: crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      
+      - name: Clean up old test images
+        run: |
+          docker images --format "{{.Repository}}:{{.Tag}}" | grep "crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server-test" | xargs -r docker rmi
+
+      - name: Build and Push Test Image
+        run: |
+          docker buildx build --push --platform linux/amd64 --progress plain --tag crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server-test:latest .
+
+      - name: SSH Deploy to Test Environment
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            # 创建测试环境日志目录并设置权限
+            mkdir -p /data/langrissar-test/logs
+            chmod 777 /data/langrissar-test/logs
+
+            # 清理测试环境未使用的同名镜像
+            docker images --format "{{.Repository}}:{{.Tag}}" | grep "crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server-test" | xargs -r docker rmi
+            
+            # 拉取测试环境最新镜像
+            docker pull crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server-test:latest
+            
+            # 停止并移除测试环境现有容器
+            docker stop langrissar-server-test || true
+            docker rm langrissar-server-test || true
+            
+            # 启动测试环境容器，使用固定端口6090和固定数据库名langrissar
+            docker run -d -p 6090:3000 \
+              --restart unless-stopped \
+              -e DB_HOST=172.17.0.1 \
+              -e DB_PORT=3306 \
+              -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
+              -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+              -e DB_DATABASE=langrissar-test \
+              -e VITE_APP_AV_APP_ID=${{ secrets.VITE_APP_AV_APP_ID }} \
+              -e VITE_APP_AV_APP_KEY=${{ secrets.VITE_APP_AV_APP_KEY }} \
+              -e VITE_APP_AV_SERVER_URL=${{ secrets.VITE_APP_AV_SERVER_URL }} \
+              -e NACOS_SERVER_ADDR=172.17.0.1:8848 \
+              -e NACOS_NAMESPACE=public \
+              -e NODE_ENV=production \
+              -v /data/langrissar-test/logs:/app/logs \
+              --name langrissar-server-test \
+              crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server-test:latest
+            
+            # 等待测试容器启动并健康检查
+            echo "等待测试容器 langrissar-server-test (端口 6090) 启动并进行健康检查..."
+            HEALTH_CHECK_URL="http://127.0.0.1:6090/"
+            MAX_ATTEMPTS=20
+            RETRY_INTERVAL=10
+            ATTEMPT_NUM=0
+            
+            until [ $ATTEMPT_NUM -ge $MAX_ATTEMPTS ]
+            do
+              ATTEMPT_NUM=$((ATTEMPT_NUM+1))
+              echo "健康检查尝试 #${ATTEMPT_NUM}: 正在请求 $HEALTH_CHECK_URL"
+              HTTP_STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" --connect-timeout 5 --max-time 5 $HEALTH_CHECK_URL)
+              
+              if [ "$HTTP_STATUS" -eq 200 ]; then
+                echo "测试环境健康检查成功，容器已就绪 (HTTP状态码: $HTTP_STATUS)。"
+                break
+              else
+                echo "健康检查失败 (HTTP状态码: $HTTP_STATUS)。将在 $RETRY_INTERVAL 秒后重试..."
+                if [ $ATTEMPT_NUM -lt $MAX_ATTEMPTS ]; then
+                  sleep $RETRY_INTERVAL
+                else
+                  echo "已达到最大健康检查尝试次数，测试容器启动失败。"
+                  break
+                fi
+              fi
+            done
+            
+            # 检查测试容器是否成功启动
+            if [ "$HTTP_STATUS" -eq 200 ] && docker ps -q -f name=langrissar-server-test | grep -q .; then
+              echo "测试环境部署成功: langrissar-server-test 已启动 (端口 6090)"
+              
+              # 发送测试环境部署成功飞书通知
+              FEISHU_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/71e11faf-9eb4-40e3-9469-6456237497cd"
+              MESSAGE="✅ 测试环境部署成功: langrissar-server-test 已更新到最新版本 (端口 6090，数据库: langrissar)。"
+              curl -X POST -H "Content-Type: application/json" -d '{"msg_type":"text","content":{"text":"'"$MESSAGE"'"}}' $FEISHU_WEBHOOK_URL
+              
+              echo "测试环境部署完成"
+            else
+              echo "测试容器启动失败或未通过健康检查 (最后状态码: $HTTP_STATUS)。"
+              
+              # 发送测试环境部署失败飞书通知
+              FEISHU_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/71e11faf-9eb4-40e3-9469-6456237497cd"
+              MESSAGE="❌ 测试环境部署失败: langrissar-server-test 启动失败或健康检查未通过 (最后状态码: $HTTP_STATUS)。"
+              curl -X POST -H "Content-Type: application/json" -d '{"msg_type":"text","content":{"text":"'"$MESSAGE"'"}}' $FEISHU_WEBHOOK_URL
+
+              # 清理失败的容器
+              docker stop langrissar-server-test || true
+              exit 1
+            fi
