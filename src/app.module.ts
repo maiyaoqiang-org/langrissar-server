@@ -7,7 +7,6 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { HeroModule } from './hero/hero.module';
 import { UserModule } from './user/user.module';
-import { JwtStrategy } from './auth/jwt.strategy';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { APP_FILTER } from '@nestjs/core';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -51,7 +50,6 @@ import { NacosModule } from './nacos/nacos.module';
   controllers: [AppController],
   providers: [
     AppService,
-    JwtStrategy,
     {
       provide: APP_INTERCEPTOR,
       useClass: TransformInterceptor,

@@ -303,19 +303,27 @@ export class UserService {
     };
   }
 
-  async updateUser(userId: number, updateUserDto: UpdateUserDto) {
+  async updateUser(currentAdminId: number, updateUserDto: UpdateUserDto) {
     const user = await this.userRepository.findOne({
-      where: { id: userId },
+      where: { id: updateUserDto.id },
     });
 
     if (!user) {
       throw new BadRequestException("用户不存在");
     }
 
+    // 检查是否是管理员账号
+    if (user.role === 'admin') {
+      // 如果是管理员，只能由本人修改
+      if (user.id !== currentAdminId) {
+        throw new BadRequestException("不能修改其他的管理员信息");
+      }
+    }
+
     // 如果要更新手机号，且与当前用户的手机号不同，才检查唯一性
     if (updateUserDto.phone && updateUserDto.phone !== user.phone) {
       const existingUser = await this.userRepository.findOne({
-        where: { phone: updateUserDto.phone, id: Not(userId) },
+        where: { phone: updateUserDto.phone, id: Not(updateUserDto.id) },
       });
       if (existingUser) {
         throw new BadRequestException("该手机号已被其他用户使用");
@@ -324,8 +332,32 @@ export class UserService {
 
     const { id, ...updateData } = updateUserDto;
 
-    await this.userRepository.update(userId, updateData);
-    return this.userRepository.findOne({ where: { id: userId } });
+    // 检查是否尝试修改角色（管理员权限不能被修改）
+    if (updateData.role !== undefined) {
+      if (user.role === 'admin' && updateData.role !== 'admin') {
+        throw new BadRequestException("管理员权限不能被修改");
+      }
+      if (user.role !== 'admin' && updateData.role === 'admin') {
+        throw new BadRequestException("不允许将用户角色修改为管理员");
+      }
+    }
+
+    // 检查是否需要使token失效（角色或激活状态被修改）
+    const needInvalidateToken = 
+      (updateData.role !== undefined && updateData.role !== user.role) ||
+      (updateData.isActive !== undefined && updateData.isActive !== user.isActive);
+
+    if (needInvalidateToken) {
+      // 增加token版本号，使所有已登录的token失效
+      await this.userRepository.update(updateUserDto.id, {
+        ...updateData,
+        tokenVersion: user.tokenVersion + 1
+      });
+    } else {
+      await this.userRepository.update(updateUserDto.id, updateData);
+    }
+
+    return this.userRepository.findOne({ where: { id: updateUserDto.id } });
   }
 
   async updatePassword(userId: number, password: string) {
@@ -370,7 +402,11 @@ export class UserService {
   }
 
   private generateTokenResponse(user: User) {
-    const payload = { sub: user.id, ...user.toJSON() };
+    const payload = { 
+      sub: user.id, 
+      tokenVersion: user.tokenVersion,
+      ...user.toJSON() 
+    };
     const token = this.jwtService.sign(payload);
     const tokenInfo = this.jwtService.decode(token) as { exp: number };
     return {

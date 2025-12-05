@@ -43,6 +43,10 @@ export class User {
   @Column()
   username: string;
 
+  @ApiProperty({ description: 'token版本号，用于控制token失效' })
+  @Column({ default: 1 })
+  tokenVersion: number;
+
   toJSON() {
     return instanceToPlain(this);
   }

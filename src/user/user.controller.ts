@@ -95,7 +95,7 @@ export class UserController {
     @Request() req,
     @Body() updateUserDto: UpdateUserDto,
   ) {
-    return this.userService.updateUser(updateUserDto.id, updateUserDto);
+    return this.userService.updateUser(req.user.sub, updateUserDto);
   }
 
   @Post('update-password')
