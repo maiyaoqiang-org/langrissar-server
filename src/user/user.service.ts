@@ -342,6 +342,11 @@ export class UserService {
       }
     }
 
+    // 检查是否尝试禁用管理员账号
+    if (user.role === 'admin' && updateData.isActive === false) {
+      throw new BadRequestException("管理员账号不能被禁用");
+    }
+
     // 检查是否需要使token失效（角色或激活状态被修改）
     const needInvalidateToken = 
       (updateData.role !== undefined && updateData.role !== user.role) ||
