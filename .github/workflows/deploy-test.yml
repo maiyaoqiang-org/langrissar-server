@@ -64,7 +64,8 @@ jobs:
               -e VITE_APP_AV_SERVER_URL=${{ secrets.VITE_APP_AV_SERVER_URL }} \
               -e NACOS_SERVER_ADDR=172.17.0.1:8848 \
               -e NACOS_NAMESPACE=public \
-              -e NODE_ENV=production \
+              -e NODE_ENV=test \
+              -e DISABLE_CRON_JOBS=true \
               -v /data/langrissar-test/logs:/app/logs \
               --name langrissar-server-test \
               crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server-test:latest
