@@ -103,7 +103,7 @@ jobs:
               
               # 发送测试环境部署成功飞书通知
               FEISHU_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/71e11faf-9eb4-40e3-9469-6456237497cd"
-              MESSAGE="✅ 测试环境部署成功: langrissar-server-test 已更新到最新版本 (端口 6090，数据库: langrissar)。"
+              MESSAGE="✅ 测试环境部署成功: langrissar-server-test 已更新到最新版本 (端口 6090，数据库: langrissar-test)。"
               curl -X POST -H "Content-Type: application/json" -d '{"msg_type":"text","content":{"text":"'"$MESSAGE"'"}}' $FEISHU_WEBHOOK_URL
               
               echo "测试环境部署完成"
