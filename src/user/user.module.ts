@@ -5,6 +5,7 @@ import { UserService } from './user.service';
 import { UserController } from './user.controller';
 import { User } from './entities/user.entity';
 import { InvitationCode } from './entities/invitation-code.entity';
+import { JwtStrategy } from '../auth/jwt.strategy';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { InvitationCode } from './entities/invitation-code.entity';
     }),
   ],
   controllers: [UserController],
-  providers: [UserService],
+  providers: [UserService, JwtStrategy],
   exports: [UserService],
 })
 export class UserModule {}

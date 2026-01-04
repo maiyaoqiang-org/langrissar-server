@@ -54,6 +54,12 @@ export class AccountService {
   private initCronJobs() {
     const timezone = "Asia/Shanghai";
 
+    // 在测试环境或明确禁用定时任务时跳过初始化
+    if (process.env.NODE_ENV === "test" || process.env.DISABLE_CRON_JOBS === "true") {
+      console.log('定时任务已禁用，跳过初始化');
+      return;
+    }
+
     if (process.env.NODE_ENV !== "development") {
       // 每天早上9点和晚上22点执行获取CDKey
       new CronJob(
