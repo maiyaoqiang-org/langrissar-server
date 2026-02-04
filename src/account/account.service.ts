@@ -23,6 +23,11 @@ import { ZlVipUserService } from "./zlvipuser.service";
 import { ZlVip } from "./entities/zlvip.entity";
 import { HomeGame } from "./entities/home-game.entity";
 import { LeanCloudService } from "./leancloud.service";
+import {
+  createZlongameUrlGuard,
+  executeCurlTemplate,
+  parseCurl,
+} from "./curl-template.util";
 
 export interface ResultItem {
   username: string;
@@ -228,6 +233,51 @@ export class AccountService {
       .andWhere("account.status = 1")
       .andWhere("zlVip.id IS NOT NULL")
       .getMany();
+  }
+
+  private async findEnabledAccounts(accountIds?: number[]): Promise<Account[]> {
+    if (accountIds?.length) {
+      return this.accountRepository
+        .createQueryBuilder("account")
+        .where("account.id IN (:...accountIds)", { accountIds })
+        .andWhere("account.status = 1")
+        .getMany();
+    }
+
+    return this.accountRepository.find({ where: { status: 1 } });
+  }
+
+  private buildAccountVars(account: Account): Record<string, string> {
+    return {
+      role_id: String(account.roleid ?? ""),
+      server_id: String(account.serverid ?? ""),
+      user_id: String(account.userid ?? ""),
+      account_id: String(account.id ?? ""),
+      username: String(account.username ?? ""),
+      app_key: String(account.appKey ?? ""),
+    };
+  }
+
+  async runCurlTemplate(curl: string, accountIds?: number[]): Promise<ResultItem[]> {
+    const accounts = await this.findEnabledAccounts(accountIds);
+    if (!accounts.length) return [];
+
+    const parsed = parseCurl(curl);
+    const urlGuard = createZlongameUrlGuard();
+    const targets = accounts.map((account) => ({
+      username: account.username,
+      vars: this.buildAccountVars(account),
+    }));
+
+    const results = await executeCurlTemplate({
+      parsed,
+      targets,
+      urlGuard,
+      concurrency: 5,
+      timeoutMs: 15000,
+    });
+
+    return results;
   }
 
   async getPredayReward(accountIds?: number[]): Promise<ResultItem[]> {

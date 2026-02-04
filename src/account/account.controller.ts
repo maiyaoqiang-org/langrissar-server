@@ -96,6 +96,14 @@ export class AccountController {
     return this.accountService.autoGetVipSignReward(accountIds);
   }
 
+  @Post('run-curl-template')
+  @ApiOperation({ summary: '执行cURL模板（POST）' })
+  async runCurlTemplate(
+    @Body() body: { curl: string; accountIds?: number[] }
+  ): Promise<ResultItem[]> {
+    return this.accountService.runCurlTemplate(body.curl, body.accountIds);
+  }
+
   @Get('get-role-info')
   @ApiOperation({ summary: '获取角色信息' })
   @ApiResponse({ status: 200, description: '获取成功' })
