@@ -360,7 +360,7 @@ export class OpenAIService {
 
     // 生成 Buffer
     const buffer = await workbook.xlsx.writeBuffer();
-    return buffer as Buffer;
+    return Buffer.from(buffer);
   }
 
   /**

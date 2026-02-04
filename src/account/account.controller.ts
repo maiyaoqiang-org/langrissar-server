@@ -5,7 +5,7 @@ import { ResultItem } from './account.service';  // 添加这行导入语句
 import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto'; // 假设你有这些 DTO
 import { Roles } from 'src/auth/roles.decorator';
 import { QueryAccountDto } from './dto/query-account.dto';
-import { CycleType, CycleTypeDescription, UserInfo, ZlvipService } from './zlvip.service';
+import { CycleType } from './zlvip.service';
 import { QueryZlVipDto } from './dto/query-zlvip.dto';
 import { ZlVipUserService } from './zlvipuser.service';
 import { HomeGameService } from './home-game.service';
@@ -24,43 +24,44 @@ export class AccountController {
     private readonly homeGameService: HomeGameService,
   ) { }
 
-
-  @Get('get-preday-reward')
-  @ApiOperation({ summary: '领取每日福利' })
-  @ApiResponse({ status: 200, description: '领取成功' })
-  @ApiResponse({ status: 400, description: '领取失败' })
-  async getPredayReward(): Promise<ResultItem[]> {  // 添加返回类型
-    return this.accountService.getPredayReward();
+  @Post('get-preday-reward')
+  @ApiOperation({ summary: '领取每日福利（POST）' })
+  async postPredayReward(
+    @Body('accountIds') accountIds?: number[]
+  ): Promise<ResultItem[]> {
+    return this.accountService.getPredayReward(accountIds);
   }
 
-  @Get('get-weekly-reward')
-  @ApiOperation({ summary: '领取每周二雪莉福利' })
-  @ApiResponse({ status: 200, description: '领取成功' })
-  @ApiResponse({ status: 400, description: '领取失败' })
-  async getWeeklyReward(): Promise<ResultItem[]> {
-    return this.accountService.getWeeklyReward();
+  @Post('get-weekly-reward')
+  @ApiOperation({ summary: '领取每周二雪莉福利（POST）' })
+  async postWeeklyReward(
+    @Body('accountIds') accountIds?: number[]
+  ): Promise<ResultItem[]> {
+    return this.accountService.getWeeklyReward(accountIds);
   }
 
-  @Get('get-monthly-reward')
-  @ApiOperation({ summary: '领取每月8号福利' })
-  @ApiResponse({ status: 200, description: '领取成功' })
-  @ApiResponse({ status: 400, description: '领取失败' })
-  async getMonthlyReward(): Promise<ResultItem[]> {
-    return this.accountService.getMonthlyReward();
+  @Post('get-monthly-reward')
+  @ApiOperation({ summary: '领取每月8号福利（POST）' })
+  async postMonthlyReward(
+    @Body('accountIds') accountIds?: number[]
+  ): Promise<ResultItem[]> {
+    return this.accountService.getMonthlyReward(accountIds);
   }
 
-  @Get('get-cdkey-reward')
-  @ApiOperation({ summary: '领取CDKey奖励' })
-  @ApiResponse({ status: 200, description: '领取成功' })
-  @ApiResponse({ status: 400, description: '领取失败' })
-  async getCdkeyReward(@Query('cdkey') cdkey: string): Promise<ResultItem[]> {
-    return this.accountService.getCdkeyReward(cdkey);
+  @Post('get-cdkey-reward')
+  @ApiOperation({ summary: '领取CDKey奖励（POST）' })
+  async postCdkeyReward(
+    @Body() body: { cdkey: string; accountIds?: number[] }
+  ): Promise<ResultItem[]> {
+    return this.accountService.getCdkeyReward(body.cdkey, body.accountIds);
   }
 
-  @Get('auto-cdkey-reward')
-  @ApiOperation({ summary: '自动领取CDKey奖励' })
-  async autoGetAndUseCdkey() {
-    return this.accountService.autoGetAndUseCdkey();
+  @Post('auto-cdkey-reward')
+  @ApiOperation({ summary: '自动领取CDKey奖励（POST）' })
+  async postAutoGetAndUseCdkey(
+    @Body('accountIds') accountIds?: number[]
+  ) {
+    return this.accountService.autoGetAndUseCdkey(accountIds);
   }
 
   @Get('clear-cdkey-cache')
@@ -71,21 +72,28 @@ export class AccountController {
     return this.accountService.clearUsedCdkeys();
   }
 
-  @Get('auto-vip-weekly-reward')
-  @ApiOperation({ summary: '自动领取VIP每周奖励' })
-  async autoVIPWeeklyReward() {
-    return this.accountService.autoGetVipReward(CycleType.Weekly);
+  @Post('auto-vip-weekly-reward')
+  @ApiOperation({ summary: '自动领取VIP每周奖励（POST）' })
+  async postAutoVIPWeeklyReward(
+    @Body('accountIds') accountIds?: number[]
+  ) {
+    return this.accountService.autoGetVipReward(CycleType.Weekly, accountIds);
   }
 
-  @Get('auto-vip-monthly-reward')
-  @ApiOperation({ summary: '自动领取VIP每月奖励' })
-  async autoVIPMonthlyReward() {
-    return this.accountService.autoGetVipReward(CycleType.Monthly);
+  @Post('auto-vip-monthly-reward')
+  @ApiOperation({ summary: '自动领取VIP每月奖励（POST）' })
+  async postAutoVIPMonthlyReward(
+    @Body('accountIds') accountIds?: number[]
+  ) {
+    return this.accountService.autoGetVipReward(CycleType.Monthly, accountIds);
   }
-  @Get('auto-vip-sign-reward')
-  @ApiOperation({ summary: '自动领取VIP签到奖励' })
-  async autoVIPSignReward() {
-    return this.accountService.autoGetVipSignReward();
+
+  @Post('auto-vip-sign-reward')
+  @ApiOperation({ summary: '自动领取VIP签到奖励（POST）' })
+  async postAutoVIPSignReward(
+    @Body('accountIds') accountIds?: number[]
+  ) {
+    return this.accountService.autoGetVipSignReward(accountIds);
   }
 
   @Get('get-role-info')

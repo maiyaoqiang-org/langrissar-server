@@ -184,6 +184,19 @@ export class AccountService {
     });
   }
 
+  private async findMzByIds(accountIds: number[]): Promise<Account[]> {
+    if (!accountIds.length) return [];
+    return this.accountRepository
+      .createQueryBuilder("account")
+      .leftJoinAndSelect("account.zlVip", "zlVip")
+      .where("account.id IN (:...accountIds)", { accountIds })
+      .andWhere("account.status = 1")
+      .andWhere("(account.appKey = :mzAppKey OR account.appKey IS NULL)", {
+        mzAppKey: ZlvipService.mzAppKey,
+      })
+      .getMany();
+  }
+
   async findAllVip(): Promise<Array<Account & { homeGame?: HomeGame }>> {
     return this.accountRepository
       .createQueryBuilder("account")
@@ -198,9 +211,29 @@ export class AccountService {
       .getMany();
   }
 
-  async getPredayReward(): Promise<ResultItem[]> {
+  private async findVipByIds(
+    accountIds: number[]
+  ): Promise<Array<Account & { homeGame?: HomeGame }>> {
+    if (!accountIds.length) return [];
+    return this.accountRepository
+      .createQueryBuilder("account")
+      .leftJoinAndSelect("account.zlVip", "zlVip")
+      .leftJoinAndMapOne(
+        "account.homeGame",
+        "home_game",
+        "homeGame",
+        "homeGame.appKey = account.appKey"
+      )
+      .where("account.id IN (:...accountIds)", { accountIds })
+      .andWhere("account.status = 1")
+      .andWhere("zlVip.id IS NOT NULL")
+      .getMany();
+  }
+
+  async getPredayReward(accountIds?: number[]): Promise<ResultItem[]> {
     try {
-      const accounts = await this.findAllMz();
+      const accounts =
+        accountIds?.length ? await this.findMzByIds(accountIds) : await this.findAllMz();
       const results: ResultItem[] = [];
 
       for (const account of accounts) {
@@ -268,9 +301,10 @@ export class AccountService {
     }
   }
 
-  async getWeeklyReward(): Promise<ResultItem[]> {
+  async getWeeklyReward(accountIds?: number[]): Promise<ResultItem[]> {
     try {
-      const accounts = await this.findAllMz();
+      const accounts =
+        accountIds?.length ? await this.findMzByIds(accountIds) : await this.findAllMz();
       const results: ResultItem[] = [];
 
       for (const account of accounts) {
@@ -351,9 +385,10 @@ export class AccountService {
     }
   }
 
-  async getMonthlyReward(): Promise<ResultItem[]> {
+  async getMonthlyReward(accountIds?: number[]): Promise<ResultItem[]> {
     try {
-      const accounts = await this.findAllMz();
+      const accounts =
+        accountIds?.length ? await this.findMzByIds(accountIds) : await this.findAllMz();
       const results: ResultItem[] = [];
 
       for (const account of accounts) {
@@ -458,9 +493,13 @@ export class AccountService {
     }
   }
 
-  async getCdkeyReward(cdkey: string): Promise<ResultItem[]> {
+  async getCdkeyReward(
+    cdkey: string,
+    accountIds?: number[]
+  ): Promise<ResultItem[]> {
     try {
-      const accounts = await this.findAllMz();
+      const accounts =
+        accountIds?.length ? await this.findMzByIds(accountIds) : await this.findAllMz();
       const results: ResultItem[] = [];
 
       // 改为直接查询数据库检查CDKey是否已使用
@@ -569,7 +608,7 @@ export class AccountService {
   }
 
   // 领取cdkey梦战专属
-  async autoGetAndUseCdkey(): Promise<string[]> {
+  async autoGetAndUseCdkey(accountIds?: number[]): Promise<string[]> {
     try {
       const cdkeys: string[] = await this.autoGetAllCdKey();
 
@@ -591,7 +630,7 @@ export class AccountService {
 
         try {
           // 尝试领取 CDKey
-          await this.getCdkeyReward(cdkey);
+          await this.getCdkeyReward(cdkey, accountIds);
           results.push(cdkey);
         } catch (error) {
           this.logger.error(`处理CDKey ${cdkey} 失败`, error);
@@ -634,10 +673,11 @@ export class AccountService {
     return res;
   }
 
-  async autoGetVipReward(cycleType: CycleType) {
+  async autoGetVipReward(cycleType: CycleType, accountIds?: number[]) {
     const label = `VIP${CycleTypeDescription[cycleType]}奖励`;
     try {
-      const accounts = await this.findAllVip();
+      const accounts =
+        accountIds?.length ? await this.findVipByIds(accountIds) : await this.findAllVip();
       const getVipAccounts = accounts.filter(
         (account) => account.zlVip?.userInfo
       );
@@ -700,14 +740,37 @@ export class AccountService {
     }
   }
 
-  async autoGetVipSignReward() {
+  async autoGetVipSignReward(accountIds?: number[]) {
     try {
-      // 直接查询zlVip表获取有userInfo的记录
-      const zlVips = await this.zlVipRepository.find({
-        where: {
-          userInfo: Not(IsNull()),
-        },
-      });
+      let zlVips: ZlVip[] = [];
+      if (accountIds?.length) {
+        const accounts = await this.accountRepository
+          .createQueryBuilder("account")
+          .leftJoinAndSelect("account.zlVip", "zlVip")
+          .where("account.id IN (:...accountIds)", { accountIds })
+          .andWhere("account.status = 1")
+          .getMany();
+        const selectedVipIds = new Set(
+          accounts
+            .map((a) => a.zlVip?.id)
+            .filter(Boolean)
+        );
+        if (!selectedVipIds.size) {
+          return `紫龙大会员自动签到结果：\n无可签到账号\n`;
+        }
+        zlVips = await this.zlVipRepository.find({
+          where: {
+            userInfo: Not(IsNull()),
+          },
+        });
+        zlVips = zlVips.filter((z) => selectedVipIds.has(z.id));
+      } else {
+        zlVips = await this.zlVipRepository.find({
+          where: {
+            userInfo: Not(IsNull()),
+          },
+        });
+      }
 
       const results = await Promise.allSettled(
         zlVips.map(async (zlVip) => {
