@@ -1,12 +1,16 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { CronJobService } from './cron-job.service';
 import { CreateCronJobDto } from './dto/create-cron-job.dto';
 import { UpdateCronJobDto } from './dto/update-cron-job.dto';
 import { QueryCronJobDto } from './dto/query-cron-job.dto';
 import { QueryCronJobLogDto } from './dto/query-cron-job-log.dto';
-import { Public } from '../auth/public.decorator';
+import { Roles } from '../auth/roles.decorator';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
 
 @Controller('cron-job')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin')
 export class CronJobController {
   constructor(private readonly cronJobService: CronJobService) {}
 
