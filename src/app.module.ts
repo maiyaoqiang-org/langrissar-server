@@ -18,6 +18,7 @@ import { CozeModule } from './coze/coze.module';
 import { ProxyModule } from './proxy/proxy.module';
 import { OpenAIModule } from './openai/openai.module';
 import { NacosModule } from './nacos/nacos.module';
+import { CronJobModule } from './cron-job/cron-job.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { NacosModule } from './nacos/nacos.module';
     ProxyModule,
     OpenAIModule,
     NacosModule,
+    CronJobModule,
   ],
   controllers: [AppController],
   providers: [
