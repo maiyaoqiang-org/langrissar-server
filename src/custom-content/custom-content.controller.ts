@@ -72,6 +72,14 @@ export class CustomContentController {
     return this.customContentService.toggle(id);
   }
 
+  /** 切换外部访问状态（admin） */
+  @Put(':id/toggle-public')
+  @Roles('admin')
+  @ApiOperation({ summary: '切换外部访问状态' })
+  togglePublic(@Param('id') id: string) {
+    return this.customContentService.togglePublic(id);
+  }
+
   /** 公开接口：根据ID查询内容（无需token） */
   @Public()
   @Get('public/id/:id')

@@ -33,6 +33,10 @@ export class CustomContent {
   @Column({ default: true })
   isActive: boolean;
 
+  @ApiProperty({ description: '是否允许外部访问', default: false })
+  @Column({ default: false })
+  isPublic: boolean;
+
   @ApiProperty({ description: '创建时间' })
   @CreateDateColumn({ type: 'timestamp' })
   @Transform(({ value }) => dayjs(value).format('YYYY-MM-DD HH:mm:ss'), { toPlainOnly: true })

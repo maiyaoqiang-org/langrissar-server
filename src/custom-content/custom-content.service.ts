@@ -67,11 +67,11 @@ export class CustomContentService {
     return entity;
   }
 
-  /** 根据ID查询启用的内容（公开接口使用） */
+  /** 根据ID查询启用的、且可外部访问的内容（公开接口使用） */
   async findOneActive(id: string) {
-    const entity = await this.customContentRepository.findOne({ where: { id, isActive: true } });
+    const entity = await this.customContentRepository.findOne({ where: { id, isActive: true, isPublic: true } });
     if (!entity) {
-      throw new NotFoundException(`该自定义内容不存在或已停用`);
+      throw new NotFoundException(`该自定义内容不存在、已停用或不可外部访问`);
     }
     return entity;
   }
@@ -85,11 +85,11 @@ export class CustomContentService {
     return entity;
   }
 
-  /** 根据key查询启用的内容（公开接口使用） */
+  /** 根据key查询启用的、且可外部访问的内容（公开接口使用） */
   async findOneActiveByKey(key: string) {
-    const entity = await this.customContentRepository.findOne({ where: { key, isActive: true } });
+    const entity = await this.customContentRepository.findOne({ where: { key, isActive: true, isPublic: true } });
     if (!entity) {
-      throw new NotFoundException(`标识键为 "${key}" 的自定义内容不存在或已停用`);
+      throw new NotFoundException(`标识键为 "${key}" 的自定义内容不存在、已停用或不可外部访问`);
     }
     return entity;
   }
@@ -123,6 +123,13 @@ export class CustomContentService {
   async toggle(id: string) {
     const entity = await this.findOne(id);
     entity.isActive = !entity.isActive;
+    return this.customContentRepository.save(entity);
+  }
+
+  /** 切换外部访问状态 */
+  async togglePublic(id: string) {
+    const entity = await this.findOne(id);
+    entity.isPublic = !entity.isPublic;
     return this.customContentRepository.save(entity);
   }
 
