@@ -57,6 +57,7 @@
     "reflect-metadata": "^0.2.2",
     "svg-captcha": "^1.4.0",
     "typeorm": "^0.3.22",
+    "uuid": "^13.0.0",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0"
   },

@@ -19,6 +19,7 @@ import { ProxyModule } from './proxy/proxy.module';
 import { OpenAIModule } from './openai/openai.module';
 import { NacosModule } from './nacos/nacos.module';
 import { CronJobModule } from './cron-job/cron-job.module';
+import { CustomContentModule } from './custom-content/custom-content.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { CronJobModule } from './cron-job/cron-job.module';
     OpenAIModule,
     NacosModule,
     CronJobModule,
+    CustomContentModule,
   ],
   controllers: [AppController],
   providers: [
