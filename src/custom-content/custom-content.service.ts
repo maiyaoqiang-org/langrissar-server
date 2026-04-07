@@ -125,4 +125,19 @@ export class CustomContentService {
     entity.isActive = !entity.isActive;
     return this.customContentRepository.save(entity);
   }
+
+  /** 搜索自定义内容（精简列表，用于变量选择） */
+  async search(keyword: string) {
+    const queryBuilder = this.customContentRepository.createQueryBuilder('cc')
+      .select(['cc.id', 'cc.key', 'cc.title', 'cc.content'])
+      .where('cc.isActive = :isActive', { isActive: true })
+      .orderBy('cc.createdAt', 'DESC')
+      .limit(20);
+
+    if (keyword) {
+      queryBuilder.andWhere('(cc.key LIKE :keyword OR cc.title LIKE :keyword)', { keyword: `%${keyword}%` });
+    }
+
+    return queryBuilder.getMany();
+  }
 }

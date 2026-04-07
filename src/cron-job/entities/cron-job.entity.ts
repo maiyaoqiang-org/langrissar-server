@@ -57,6 +57,9 @@ export class CronJobEntity {
   @Column({ comment: '失败重试次数', default: 0 })
   retryCount: number;
 
+  @Column({ comment: '自定义变量配置（JSON格式）', nullable: true, type: 'text' })
+  variables: string;
+
   @Column({ comment: '上次执行时间', nullable: true, type: 'timestamp' })
   lastRunTime: Date;
 

@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, Between, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
+import { Repository, Like, Between, MoreThanOrEqual, LessThanOrEqual, In } from 'typeorm';
 import { CronJob } from 'cron';
 import axios from 'axios';
 import * as https from 'https';
@@ -12,6 +12,7 @@ import { UpdateCronJobDto } from './dto/update-cron-job.dto';
 import { QueryCronJobDto } from './dto/query-cron-job.dto';
 import { QueryCronJobLogDto } from './dto/query-cron-job-log.dto';
 import { LoggerService } from '../common/services/logger.service';
+import { CustomContent } from '../custom-content/entities/custom-content.entity';
 
 @Injectable()
 export class CronJobService implements OnModuleInit, OnModuleDestroy {
@@ -23,6 +24,8 @@ export class CronJobService implements OnModuleInit, OnModuleDestroy {
     private cronJobRepository: Repository<CronJobEntity>,
     @InjectRepository(CronJobLog)
     private cronJobLogRepository: Repository<CronJobLog>,
+    @InjectRepository(CustomContent)
+    private customContentRepository: Repository<CustomContent>,
   ) {}
 
   async onModuleInit() {
@@ -91,11 +94,66 @@ export class CronJobService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /** 解析自定义变量，返回变量名到内容的映射 */
+  private async resolveVariables(job: CronJobEntity): Promise<Record<string, string>> {
+    const variableMap: Record<string, string> = {};
+    if (!job.variables) return variableMap;
+
+    try {
+      const vars: Array<{ name: string; customContentId: string }> = JSON.parse(job.variables);
+      if (!Array.isArray(vars) || vars.length === 0) return variableMap;
+
+      const ids = vars.map(v => v.customContentId).filter(Boolean);
+      if (ids.length === 0) return variableMap;
+
+      const contents = await this.customContentRepository.find({
+        where: { id: In(ids), isActive: true },
+        select: ['id', 'content'],
+      });
+
+      const contentMap = new Map(contents.map(c => [c.id, c.content]));
+      for (const v of vars) {
+        if (v.name && v.customContentId && contentMap.has(v.customContentId)) {
+          variableMap[v.name] = contentMap.get(v.customContentId)!;
+        }
+      }
+    } catch (e) {
+      this.logger.error(`解析变量失败: ${e.message}`);
+    }
+
+    return variableMap;
+  }
+
+  /** 将文本中的 {{变量名}} 替换为实际值 */
+  private replaceVariables(text: string, variableMap: Record<string, string>): string {
+    if (!text || Object.keys(variableMap).length === 0) return text;
+    return text.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
+      return variableMap[varName] !== undefined ? variableMap[varName] : match;
+    });
+  }
+
+  /** 构建替换变量后的任务副本 */
+  private async buildResolvedJob(job: CronJobEntity): Promise<CronJobEntity> {
+    const variableMap = await this.resolveVariables(job);
+    if (Object.keys(variableMap).length === 0) return job;
+
+    const resolved = { ...job };
+    resolved.targetUrl = this.replaceVariables(resolved.targetUrl, variableMap);
+    resolved.headers = this.replaceVariables(resolved.headers, variableMap);
+    resolved.body = this.replaceVariables(resolved.body, variableMap);
+    resolved.curlCommand = this.replaceVariables(resolved.curlCommand, variableMap);
+
+    this.logger.log({ level: 'info', message: `任务 ${job.name} 变量替换完成: ${JSON.stringify(Object.keys(variableMap))}` });
+    return resolved;
+  }
+
   async executeJob(jobId: number, isManual: boolean = false): Promise<CronJobLog> {
     const job = await this.cronJobRepository.findOne({ where: { id: jobId } });
     if (!job) {
       throw new NotFoundException('任务不存在');
     }
+
+    const resolvedJob = await this.buildResolvedJob(job);
 
     const log = this.cronJobLogRepository.create({
       cronJobId: jobId,
@@ -112,10 +170,10 @@ export class CronJobService implements OnModuleInit, OnModuleDestroy {
       try {
         let result: { statusCode: number; response: string };
 
-        if (job.taskType === TaskType.URL) {
-          result = await this.executeUrlTask(job);
-        } else if (job.taskType === TaskType.CURL) {
-          result = await this.executeCurlTask(job);
+        if (resolvedJob.taskType === TaskType.URL) {
+          result = await this.executeUrlTask(resolvedJob);
+        } else if (resolvedJob.taskType === TaskType.CURL) {
+          result = await this.executeCurlTask(resolvedJob);
         } else {
           throw new Error('未知的任务类型');
         }
@@ -177,6 +235,7 @@ export class CronJobService implements OnModuleInit, OnModuleDestroy {
       config.data = job.body;
     }
 
+    console.log(111,config)   
     const response = await axios(config);
     let responseData = '';
     try {

@@ -32,6 +32,14 @@ export class CustomContentController {
     return this.customContentService.findAll(queryDto);
   }
 
+  /** 搜索自定义内容（admin，精简列表，用于变量选择） */
+  @Get('search')
+  @Roles('admin')
+  @ApiOperation({ summary: '搜索自定义内容（精简列表）' })
+  search(@Query('keyword') keyword: string) {
+    return this.customContentService.search(keyword);
+  }
+
   /** 根据ID获取自定义内容（admin） */
   @Get('detail/:id')
   @Roles('admin')

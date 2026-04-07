@@ -52,4 +52,8 @@ export class CreateCronJobDto {
   @IsNumber()
   @Min(0)
   retryCount?: number;
+
+  @IsString()
+  @IsOptional()
+  variables?: string;
 }
