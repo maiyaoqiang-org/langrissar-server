@@ -10,8 +10,11 @@ RUN apk add --no-cache \
     ca-certificates \
     ttf-freefont \
     font-noto-cjk \
-    wqy-zenhei \
-    noto-color-emoji
+    wqy-zenhei
+
+# 安装 Google Noto Color Emoji 字体（从本地复制）
+COPY fonts/NotoColorEmoji.ttf /usr/share/fonts/noto-color-emoji/NotoColorEmoji.ttf
+RUN fc-cache -f
 
 # 设置 Puppeteer 环境变量
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
