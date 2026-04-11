@@ -1,5 +1,8 @@
-import { Controller, Post, Body, Query, Get } from '@nestjs/common';
+import { Controller, Post, Body, Query, Get, Param, Res, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { Response } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
 import { ScreenshotService } from './screenshot.service';
 import { ScreenshotDto } from './dto/screenshot.dto';
 import { Public } from '../auth/public.decorator';
@@ -40,5 +43,29 @@ export class ScreenshotController {
     dto.fullPage = fullPage === 'false' ? false : true;
 
     return this.screenshotService.submitScreenshot(dto);
+  }
+
+  /** 通过文件名获取截图文件 */
+  @Public()
+  @Get('files/:filename')
+  @ApiOperation({ summary: '获取截图文件' })
+  async getScreenshotFile(
+    @Param('filename') filename: string,
+    @Res() res: Response,
+  ) {
+    const safeName = path.basename(filename);
+    const filepath = this.screenshotService.getScreenshotPath(safeName);
+
+    if (!fs.existsSync(filepath)) {
+      throw new NotFoundException('截图文件不存在或正在处理中');
+    }
+
+    const ext = path.extname(safeName).toLowerCase();
+    const contentType = ext === '.jpeg' || ext === '.jpg' ? 'image/jpeg' : 'image/png';
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    const stream = fs.createReadStream(filepath);
+    stream.pipe(res);
   }
 }
