@@ -20,6 +20,7 @@ import { OpenAIModule } from './openai/openai.module';
 import { NacosModule } from './nacos/nacos.module';
 import { CronJobModule } from './cron-job/cron-job.module';
 import { CustomContentModule } from './custom-content/custom-content.module';
+import { ScreenshotModule } from './screenshot/screenshot.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { CustomContentModule } from './custom-content/custom-content.module';
     NacosModule,
     CronJobModule,
     CustomContentModule,
+    ScreenshotModule,
   ],
   controllers: [AppController],
   providers: [

@@ -46,6 +46,7 @@
     "crypto-js": "^4.2.0",
     "dayjs": "^1.11.13",
     "exceljs": "^4.4.0",
+    "form-data": "^4.0.5",
     "leancloud-storage": "^4.15.2",
     "mysql2": "^3.14.0",
     "nacos": "^2.6.0",
