@@ -10,9 +10,7 @@ RUN apk add --no-cache \
     ca-certificates \
     ttf-freefont \
     font-noto-cjk \
-    wqy-zenhei \
-    font-noto-emoji \
-    noto-fonts-emoji
+    wqy-zenhei
 
 # 设置 Puppeteer 环境变量
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
