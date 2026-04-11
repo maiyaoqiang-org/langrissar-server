@@ -82,8 +82,9 @@ export class ScreenshotService {
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--font-render-hinting=none',
+          '--enable-font-antialiasing',
+          '--font-render-hinting=medium',
+          '--force-device-scale-factor=1',
         ],
         ...(isWindows
           ? { channel: 'chrome' as const }
@@ -107,6 +108,15 @@ export class ScreenshotService {
       });
 
       await page.setUserAgent(isMobileWidth ? this.MOBILE_UA : this.DESKTOP_UA);
+
+      await page.evaluateOnNewDocument(() => {
+        const style = document.createElement('style');
+        style.textContent = `
+          * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+          body { text-rendering: optimizeLegibility; }
+        `;
+        document.head.appendChild(style);
+      });
 
       await page.goto(dto.url, {
         waitUntil: 'domcontentloaded',
