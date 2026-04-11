@@ -7,7 +7,9 @@ import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { ScreenshotDto } from './dto/screenshot.dto';
-import { FEISHU_WEBHOOK_URL } from '../config/baseConfig';
+import { FEISHU_WEBHOOK_MOYUAN_SCREENSHOT_URL, SERVER_BASE_URL } from '../config/baseConfig';
+
+// 用法
 
 @Injectable()
 export class ScreenshotService {
@@ -17,7 +19,7 @@ export class ScreenshotService {
   private readonly COOLDOWN_MS = 3000;
   private readonly SCREENSHOT_DIR = path.join(process.cwd(), 'screenshots');
   private readonly MAX_AGE_DAYS = 30;
-  private readonly BASE_URL = 'https://maiyaoqiang.fun/api/screenshot/files';
+  private readonly BASE_URL = `${SERVER_BASE_URL}/screenshot/files`;
 
   private readonly MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
   private readonly DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -211,7 +213,7 @@ export class ScreenshotService {
   /** 发送飞书文本消息 */
   private async sendFeishuText(text: string) {
     try {
-      await axios.post(FEISHU_WEBHOOK_URL, {
+      await axios.post(FEISHU_WEBHOOK_MOYUAN_SCREENSHOT_URL, {
         msg_type: 'text',
         content: { text },
       });
