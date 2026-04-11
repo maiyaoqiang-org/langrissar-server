@@ -27,7 +27,7 @@ jobs:
 
       - name: Build and Push
         run: |
-          docker buildx build --push --platform linux/amd64 --progress plain --tag crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest .
+          docker buildx build --no-cache --push --platform linux/amd64 --progress plain --tag crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest .
 
       - name: SSH Deploy
         uses: appleboy/ssh-action@master

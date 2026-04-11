@@ -1,6 +1,6 @@
 FROM node:20-alpine
 
-# 安装 Chromium 和必要的依赖
+# 安装 Chromium 和必要的依赖（包含中文字体）
 RUN apk add --no-cache \
     chromium \
     nss \
@@ -8,7 +8,9 @@ RUN apk add --no-cache \
     freetype-dev \
     harfbuzz \
     ca-certificates \
-    ttf-freefont
+    ttf-freefont \
+    font-noto-cjk \
+    wqy-zenhei
 
 # 设置 Puppeteer 环境变量
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
