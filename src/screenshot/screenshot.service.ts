@@ -10,6 +10,7 @@ import { ScreenshotDto } from './dto/screenshot.dto';
 import { FEISHU_WEBHOOK_MOYUAN_SCREENSHOT_URL, SERVER_BASE_URL } from '../config/baseConfig';
 
 // 用法
+// https://maiyaoqiang.fun/api/screenshot?url=https://my.feishu.cn/docx/M3CndOaXQowS1ixfh7mc7IsZnJ2&width=414
 
 @Injectable()
 export class ScreenshotService {
