@@ -16,6 +16,7 @@ export class ScreenshotService {
   private lastRequestTime: number = 0;
   private readonly COOLDOWN_MS = 3000;
   private readonly SCREENSHOT_DIR = path.join(process.cwd(), 'screenshots');
+  private readonly FONTS_DIR = path.join(process.cwd(), 'fonts');
   private readonly MAX_AGE_DAYS = 30;
   private readonly BASE_URL = 'https://maiyaoqiang.fun/api/screenshot/files';
 
@@ -32,6 +33,28 @@ export class ScreenshotService {
       fs.mkdirSync(this.SCREENSHOT_DIR, { recursive: true });
       this.logger.log(`截图目录已创建: ${this.SCREENSHOT_DIR}`);
     }
+  }
+
+  /** 生成 emoji 字体的 CSS @font-face（通过 base64 内联，精确限制 unicode-range） */
+  private getEmojiFontFaceCSS(): string {
+    const fontPath = path.join(this.FONTS_DIR, 'NotoColorEmoji.ttf');
+    if (!fs.existsSync(fontPath)) {
+      this.logger.warn(`Emoji 字体文件不存在: ${fontPath}`);
+      return '';
+    }
+    const fontBuffer = fs.readFileSync(fontPath);
+    const base64 = fontBuffer.toString('base64');
+    return `
+      @font-face {
+        font-family: 'EmojiFallback';
+        src: url('data:font/ttf;base64,${base64}') format('truetype');
+        font-weight: normal;
+        font-style: normal;
+        unicode-range: U+1F600-1F64F, U+1F300-1F5FF, U+1F680-1F6FF, U+1F900-1F9FF,
+          U+1FA00-1FA6F, U+1FA70-1FAFF, U+2600-26FF, U+2700-27BF,
+          U+FE00-FE0F, U+200D, U+20E3, U+E0020-E007F;
+      }
+    `;
   }
 
   /** 提交截图任务，立即返回访问地址，异步执行截图并发送飞书通知 */
@@ -94,6 +117,10 @@ export class ScreenshotService {
       browser = await puppeteer.launch(launchOptions);
       const page = await browser.newPage();
 
+      await page.setExtraHTTPHeaders({
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+      });
+
       const width = dto.width || 1920;
       const height = dto.height || 1080;
       const isMobileWidth = width <= 768;
@@ -106,7 +133,23 @@ export class ScreenshotService {
         hasTouch: isMobileWidth,
       });
 
-      await page.setUserAgent(isMobileWidth ? this.MOBILE_UA : this.DESKTOP_UA);
+      const ua = isMobileWidth ? this.MOBILE_UA : this.DESKTOP_UA;
+      await page.setUserAgent(`${ua} (Language zh-CN)`);
+
+      const emojiCSS = this.getEmojiFontFaceCSS();
+      await page.evaluateOnNewDocument((css: string) => {
+        if (css) {
+          const style = document.createElement('style');
+          style.textContent = css + `
+            body, * {
+              font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans CJK SC',
+                'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+                'WenQuanYi Zen Hei', sans-serif, 'EmojiFallback' !important;
+            }
+          `;
+          document.documentElement.appendChild(style);
+        }
+      }, emojiCSS);
 
       await page.goto(dto.url, {
         waitUntil: 'domcontentloaded',
