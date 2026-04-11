@@ -84,6 +84,7 @@ export class ScreenshotService {
           '--disable-dev-shm-usage',
           '--disable-gpu',
           '--font-render-hinting=none',
+          '--lang=zh-CN',
         ],
         ...(isWindows
           ? { channel: 'chrome' as const }
@@ -107,6 +108,9 @@ export class ScreenshotService {
       });
 
       await page.setUserAgent(isMobileWidth ? this.MOBILE_UA : this.DESKTOP_UA);
+      await page.setExtraHTTPHeaders({
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+      });
 
       await page.goto(dto.url, {
         waitUntil: 'domcontentloaded',

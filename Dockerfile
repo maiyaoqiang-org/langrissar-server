@@ -7,10 +7,16 @@ RUN apk add --no-cache \
     freetype \
     freetype-dev \
     harfbuzz \
+    fontconfig \
     ca-certificates \
     ttf-freefont \
+    ttf-dejavu \
+    font-noto \
     font-noto-cjk \
+    font-noto-emoji \
     wqy-zenhei
+
+RUN fc-cache -f -v
 
 # 设置 Puppeteer 环境变量
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
