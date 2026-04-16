@@ -19,7 +19,7 @@ export class ScreenshotDto {
   @Max(100)
   quality?: number;
 
-  @ApiProperty({ description: '视口宽度', default: 1920, required: false })
+  @ApiProperty({ description: '视口宽度', default: 414, required: false })
   @IsOptional()
   @IsNumber()
   @Min(375)

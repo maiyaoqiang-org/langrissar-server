@@ -29,7 +29,8 @@ export class ScreenshotService {
 
   private readonly MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
   private readonly DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-
+  // private readonly KEEP_SEGMENT_FILES = process.env.NODE_ENV === 'development';
+  private readonly KEEP_SEGMENT_FILES = false;
   constructor() {
     this.ensureDir();
   }
@@ -103,7 +104,7 @@ export class ScreenshotService {
       browser = await puppeteer.launch(launchOptions);
       const page = await browser.newPage();
 
-      const width = dto.width || 1920;
+      const width = dto.width || 414;
       const height = dto.height || 1080;
       const isMobileWidth = width <= 768;
 
@@ -179,8 +180,8 @@ export class ScreenshotService {
     const segments: { buffer: Buffer; scrollY: number; scrollH: number; headerH: number }[] = [];
     let currentY = 0;
     let finalScrollHeight = 0;
-    const maxSegments = 50;
-    const scrollDelay = 500;
+    const maxSegments = 100;
+    const scrollDelay = 800;
 
     for (let i = 0; i < maxSegments; i++) {
       await page.evaluate((y: number) => window.scrollTo(0, y), currentY);
@@ -335,6 +336,22 @@ export class ScreenshotService {
 
     const finalMeta = await sharp(resultBuffer).metadata();
     this.logger.log(`拼接完成: 最终高度=${finalMeta.height}px, 宽度=${finalMeta.width}px`);
+
+    if (!this.KEEP_SEGMENT_FILES) {
+      this.logger.log('清理分段临时文件...');
+      const allTempFiles = [...tempFiles, ...croppedFiles];
+      for (const file of allTempFiles) {
+        try {
+          if (fs.existsSync(file)) {
+            fs.unlinkSync(file);
+          }
+        } catch (e) {
+          this.logger.warn(`删除临时文件失败 ${file}: ${e.message}`);
+        }
+      }
+      this.logger.log(`清理完成，共删除 ${allTempFiles.length} 个临时文件`);
+    }
+
     return resultBuffer;
   }
 

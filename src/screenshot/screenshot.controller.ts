@@ -38,7 +38,7 @@ export class ScreenshotController {
     const dto = new ScreenshotDto();
     dto.url = url;
     dto.format = format || 'png';
-    dto.width = width ? parseInt(width) : 1920;
+    dto.width = width ? parseInt(width) : 414;
     dto.height = height ? parseInt(height) : 1080;
     dto.fullPage = fullPage === 'false' ? false : true;
 
