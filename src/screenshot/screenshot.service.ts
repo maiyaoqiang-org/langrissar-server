@@ -207,8 +207,9 @@ export class ScreenshotService {
       const scrollHeight = scrollInfo.scrollHeight;
       finalScrollHeight = Math.max(finalScrollHeight, scrollHeight);
 
-      if (scrollInfo.scrollY >= scrollHeight - 1) {
-        this.logger.log(`已到底部: scrollY=${scrollInfo.scrollY} >= scrollHeight=${scrollHeight}，停止截图`);
+      const lastY = segments.length >= 1 ? segments[segments.length - 1].scrollY : -1;
+      if (segments.length >= 1 && scrollInfo.scrollY <= lastY + 1) {
+        this.logger.log(`滚动未推进: prevY=${lastY}, currentY=${scrollInfo.scrollY}，停止截图`);
         break;
       }
 
@@ -218,12 +219,13 @@ export class ScreenshotService {
         ...(format === 'jpeg' ? { quality: quality || 80 } : {}),
       }) as Buffer;
 
+      const isAtBottom = scrollInfo.scrollY + viewportHeight >= scrollHeight - 1;
+
       segments.push({ buffer: segBuffer, scrollY: scrollInfo.scrollY, scrollH: scrollHeight, headerH: scrollInfo.headerH });
       this.logger.log(`分段截图: Y=${scrollInfo.scrollY}, headerH=${scrollInfo.headerH}, scrollH=${scrollHeight}, 段数=${segments.length}`);
 
-      const lastY = segments.length >= 2 ? segments[segments.length - 2].scrollY : -1;
-      if (segments.length >= 2 && scrollInfo.scrollY <= lastY) {
-        this.logger.log(`滚动未推进: prevY=${lastY}, currentY=${scrollInfo.scrollY}，停止截图`);
+      if (isAtBottom) {
+        this.logger.log(`已接近底部: scrollY=${scrollInfo.scrollY}, viewportH=${viewportHeight}, scrollH=${scrollHeight}，停止截图`);
         break;
       }
 
@@ -275,6 +277,11 @@ export class ScreenshotService {
         : finalScrollHeight;
       const keptEndY = Math.max(keptStartY, Math.min(nextKeptStartY, finalScrollHeight));
 
+      if (keptEndY <= keptStartY) {
+        this.logger.log(`跳过段${i}: headerH=${seg.headerH}, kept=[${keptStartY}, ${keptEndY})`);
+        continue;
+      }
+
       const cropTop = Math.max(0, Math.round((keptStartY - seg.scrollY) * dpr));
       let cropHeight = Math.max(1, Math.round((keptEndY - keptStartY) * dpr));
 
@@ -294,6 +301,10 @@ export class ScreenshotService {
         .toFile(croppedPath);
       croppedFiles.push(croppedPath);
       this.logger.log(`裁剪段${i}: headerH=${seg.headerH}, cropTop=${cropTop}, cropHeight=${cropHeight}, kept=[${keptStartY}, ${keptEndY})`);
+    }
+
+    if (croppedFiles.length === 0) {
+      return segments[0].buffer;
     }
 
     /** 逐段拼接：用 sharp 逐个 extend + composite */
