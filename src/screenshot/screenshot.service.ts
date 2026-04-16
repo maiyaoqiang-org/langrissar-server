@@ -174,29 +174,9 @@ export class ScreenshotService {
   ): Promise<Buffer> {
     const viewport = await page.viewport();
     const dpr = viewport?.deviceScaleFactor || 1;
-    const canvasWidth = (viewport?.width || 1920) * dpr;
-
-    /** 检测页面中 fixed/sticky 定位的顶部栏高度 */
-    const fixedHeaderHeight = await page.evaluate(() => {
-      const elements = document.querySelectorAll('*');
-      let maxBottom = 0;
-      for (const el of elements) {
-        const style = window.getComputedStyle(el);
-        const rect = el.getBoundingClientRect();
-        if ((style.position === 'fixed' || style.position === 'sticky')
-          && rect.top === 0 && rect.height > 0 && rect.height < 200) {
-          maxBottom = Math.max(maxBottom, rect.height);
-        }
-      }
-      return maxBottom;
-    });
-    this.logger.log(`检测到固定顶部栏高度: ${fixedHeaderHeight}px`);
-
-    /** 有效滚动步长 = 视口高度 - 顶部栏高度（相邻段有重叠区域，避免内容被切掉） */
-    const scrollStep = fixedHeaderHeight > 0 ? viewportHeight - fixedHeaderHeight : viewportHeight;
 
     /** 每段截图记录：buffer + 截图时的 scrollY */
-    const segments: { buffer: Buffer; scrollY: number; scrollH: number }[] = [];
+    const segments: { buffer: Buffer; scrollY: number; scrollH: number; headerH: number }[] = [];
     let currentY = 0;
     let finalScrollHeight = 0;
     const maxSegments = 50;
@@ -206,11 +186,29 @@ export class ScreenshotService {
       await page.evaluate((y: number) => window.scrollTo(0, y), currentY);
       await new Promise(r => setTimeout(r, scrollDelay));
 
-      const scrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-      finalScrollHeight = scrollHeight;
+      const scrollInfo = await page.evaluate(() => {
+        const elements = document.querySelectorAll('*');
+        let maxHeader = 0;
+        for (const el of elements) {
+          const style = window.getComputedStyle(el);
+          if (style.position !== 'fixed' && style.position !== 'sticky') continue;
+          const rect = el.getBoundingClientRect();
+          if (rect.height <= 0 || rect.height >= 300) continue;
+          if (rect.top < -1 || rect.top > 1) continue;
+          maxHeader = Math.max(maxHeader, rect.height);
+        }
+        return {
+          scrollY: window.scrollY,
+          scrollHeight: document.documentElement.scrollHeight,
+          headerH: Math.round(maxHeader),
+        };
+      });
 
-      if (currentY >= scrollHeight) {
-        this.logger.log(`已到底部: currentY=${currentY} >= scrollHeight=${scrollHeight}，停止截图`);
+      const scrollHeight = scrollInfo.scrollHeight;
+      finalScrollHeight = Math.max(finalScrollHeight, scrollHeight);
+
+      if (scrollInfo.scrollY >= scrollHeight - 1) {
+        this.logger.log(`已到底部: scrollY=${scrollInfo.scrollY} >= scrollHeight=${scrollHeight}，停止截图`);
         break;
       }
 
@@ -220,16 +218,25 @@ export class ScreenshotService {
         ...(format === 'jpeg' ? { quality: quality || 80 } : {}),
       }) as Buffer;
 
-      segments.push({ buffer: segBuffer, scrollY: currentY, scrollH: scrollHeight });
-      this.logger.log(`分段截图: Y=${currentY}, scrollH=${scrollHeight}, 段数=${segments.length}`);
+      segments.push({ buffer: segBuffer, scrollY: scrollInfo.scrollY, scrollH: scrollHeight, headerH: scrollInfo.headerH });
+      this.logger.log(`分段截图: Y=${scrollInfo.scrollY}, headerH=${scrollInfo.headerH}, scrollH=${scrollHeight}, 段数=${segments.length}`);
 
-      currentY += scrollStep;
+      const lastY = segments.length >= 2 ? segments[segments.length - 2].scrollY : -1;
+      if (segments.length >= 2 && scrollInfo.scrollY <= lastY) {
+        this.logger.log(`滚动未推进: prevY=${lastY}, currentY=${scrollInfo.scrollY}，停止截图`);
+        break;
+      }
+
+      const step = scrollInfo.headerH > 0
+        ? Math.max(1, viewportHeight - scrollInfo.headerH)
+        : viewportHeight;
+      currentY = scrollInfo.scrollY + step - 2;
 
       if (currentY >= scrollHeight) {
         await page.evaluate((y: number) => window.scrollTo(0, y), currentY);
         await new Promise(r => setTimeout(r, scrollDelay));
         const newScrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-        finalScrollHeight = newScrollHeight;
+        finalScrollHeight = Math.max(finalScrollHeight, newScrollHeight);
         this.logger.log(`到底检测: newY=${currentY}, newScrollH=${newScrollHeight}`);
         if (newScrollHeight <= scrollHeight) break;
       }
@@ -243,9 +250,6 @@ export class ScreenshotService {
       return segments[0].buffer;
     }
 
-    const segPixelHeight = viewportHeight * dpr;
-    const fixedHeaderPixelHeight = fixedHeaderHeight * dpr;
-
     /** 保存原始段文件 */
     const tempFiles: string[] = [];
     for (let i = 0; i < segments.length; i++) {
@@ -255,54 +259,41 @@ export class ScreenshotService {
       this.logger.log(`临时段文件: ${segPath} (${(segments[i].buffer.length / 1024).toFixed(1)}KB), scrollY=${segments[i].scrollY}`);
     }
 
-    /**
-     * 精确裁剪每段：
-     * - 第一段：保留完整视口（含顶部栏），裁掉超出 scrollHeight 的底部空白
-     * - 中间段：裁掉顶部栏区域
-     * - 最后一段：从底部往上截取实际内容高度，避免底部空白+虚拟滚动导致内容错位
-     */
     const croppedFiles: string[] = [];
     const isLast = (i: number) => i === segments.length - 1;
 
     for (let i = 0; i < tempFiles.length; i++) {
       const seg = segments[i];
       const croppedPath = path.join(this.SCREENSHOT_DIR, `_seg_${i}_cropped_${Date.now()}.png`);
+      const meta = await sharp(tempFiles[i]).metadata();
+      const imageWidth = meta.width || Math.round((viewport?.width || 1920) * dpr);
+      const imageHeight = meta.height || Math.round(viewportHeight * dpr);
 
-      if (isLast(i) && segments.length > 1) {
-        /** 最后一段：从图片底部往上截取实际内容高度 */
-        const bottomContentHeight = finalScrollHeight - seg.scrollY;
-        const cropHeight = bottomContentHeight * dpr;
-        const cropTop = segPixelHeight - cropHeight;
+      const keptStartY = seg.scrollY + (i === 0 ? 0 : seg.headerH);
+      const nextKeptStartY = !isLast(i)
+        ? (segments[i + 1].scrollY + segments[i + 1].headerH)
+        : finalScrollHeight;
+      const keptEndY = Math.max(keptStartY, Math.min(nextKeptStartY, finalScrollHeight));
 
-        await sharp(tempFiles[i])
-          .extract({
-            top: Math.round(cropTop),
-            left: 0,
-            width: canvasWidth,
-            height: Math.round(cropHeight),
-          })
-          .toFile(croppedPath);
-        croppedFiles.push(croppedPath);
-        this.logger.log(`裁剪最后段${i}: bottomContentH=${bottomContentHeight}, cropTop=${Math.round(cropTop)}, cropHeight=${Math.round(cropHeight)}`);
-      } else {
-        /** 非最后一段：从顶部裁掉 fixed header */
-        const cropTop = (i === 0 || fixedHeaderHeight <= 0) ? 0 : fixedHeaderPixelHeight;
-        const contentEnd = seg.scrollY + viewportHeight;
-        const actualContentEnd = Math.min(contentEnd, finalScrollHeight);
-        const effectiveHeight = actualContentEnd - seg.scrollY;
-        const cropHeight = Math.max(1, (effectiveHeight * dpr) - cropTop);
+      const cropTop = Math.max(0, Math.round((keptStartY - seg.scrollY) * dpr));
+      let cropHeight = Math.max(1, Math.round((keptEndY - keptStartY) * dpr));
 
-        await sharp(tempFiles[i])
-          .extract({
-            top: cropTop,
-            left: 0,
-            width: canvasWidth,
-            height: cropHeight,
-          })
-          .toFile(croppedPath);
-        croppedFiles.push(croppedPath);
-        this.logger.log(`裁剪段${i}: cropTop=${cropTop}, cropHeight=${cropHeight}, effectiveH=${effectiveHeight}`);
+      if (cropTop >= imageHeight) {
+        cropHeight = 1;
+      } else if (cropTop + cropHeight > imageHeight) {
+        cropHeight = Math.max(1, imageHeight - cropTop);
       }
+
+      await sharp(tempFiles[i])
+        .extract({
+          top: cropTop,
+          left: 0,
+          width: imageWidth,
+          height: cropHeight,
+        })
+        .toFile(croppedPath);
+      croppedFiles.push(croppedPath);
+      this.logger.log(`裁剪段${i}: headerH=${seg.headerH}, cropTop=${cropTop}, cropHeight=${cropHeight}, kept=[${keptStartY}, ${keptEndY})`);
     }
 
     /** 逐段拼接：用 sharp 逐个 extend + composite */
