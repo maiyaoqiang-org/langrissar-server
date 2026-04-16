@@ -219,9 +219,8 @@ export class ScreenshotService {
   private async sendFeishuText(text: string) {
     try {
       await axios.post(
-        FEISHU_WEBHOOK_URL
-        // FEISHU_WEBHOOK_MOYUAN_SCREENSHOT_URL
-        , {
+        process.env.NODE_ENV === 'development' ?  FEISHU_WEBHOOK_URL : FEISHU_WEBHOOK_MOYUAN_SCREENSHOT_URL,
+        {
           msg_type: 'text',
           content: { text },
         });
