@@ -56,6 +56,7 @@
     "passport-jwt": "^4.0.1",
     "puppeteer-core": "^24.8.2",
     "reflect-metadata": "^0.2.2",
+    "sharp": "^0.34.5",
     "svg-captcha": "^1.4.0",
     "typeorm": "^0.3.22",
     "uuid": "^13.0.0",
