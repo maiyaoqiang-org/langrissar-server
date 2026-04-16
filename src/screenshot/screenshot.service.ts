@@ -192,39 +192,35 @@ export class ScreenshotService {
     });
     this.logger.log(`检测到固定顶部栏高度: ${fixedHeaderHeight}px`);
 
-    /** 有效滚动步长 = 视口高度 - 顶部栏高度（避免内容被切掉） */
+    /** 有效滚动步长 = 视口高度 - 顶部栏高度（相邻段有重叠区域，避免内容被切掉） */
     const scrollStep = fixedHeaderHeight > 0 ? viewportHeight - fixedHeaderHeight : viewportHeight;
 
-    const segments: Buffer[] = [];
+    /** 每段截图记录：buffer + 截图时的 scrollY */
+    const segments: { buffer: Buffer; scrollY: number; scrollH: number }[] = [];
     let currentY = 0;
-    let prevScrollHeight = 0;
-    let noGrowthCount = 0;
+    let finalScrollHeight = 0;
     const maxSegments = 50;
     const scrollDelay = 500;
-    const maxNoGrowth = 3;
 
-    while (segments.length < maxSegments) {
+    for (let i = 0; i < maxSegments; i++) {
       await page.evaluate((y: number) => window.scrollTo(0, y), currentY);
       await new Promise(r => setTimeout(r, scrollDelay));
 
       const scrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+      finalScrollHeight = scrollHeight;
 
-      if (scrollHeight > prevScrollHeight) {
-        noGrowthCount = 0;
-      } else {
-        noGrowthCount++;
+      if (currentY >= scrollHeight) {
+        this.logger.log(`已到底部: currentY=${currentY} >= scrollHeight=${scrollHeight}，停止截图`);
+        break;
       }
-      prevScrollHeight = scrollHeight;
-
-      if (currentY >= scrollHeight && noGrowthCount >= maxNoGrowth) break;
 
       const segBuffer = await page.screenshot({
         type: format as 'png' | 'jpeg',
         encoding: 'binary',
         ...(format === 'jpeg' ? { quality: quality || 80 } : {}),
       }) as Buffer;
-      segments.push(segBuffer);
 
+      segments.push({ buffer: segBuffer, scrollY: currentY, scrollH: scrollHeight });
       this.logger.log(`分段截图: Y=${currentY}, scrollH=${scrollHeight}, 段数=${segments.length}`);
 
       currentY += scrollStep;
@@ -233,98 +229,111 @@ export class ScreenshotService {
         await page.evaluate((y: number) => window.scrollTo(0, y), currentY);
         await new Promise(r => setTimeout(r, scrollDelay));
         const newScrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-        if (newScrollHeight <= scrollHeight) {
-          noGrowthCount++;
-        } else {
-          noGrowthCount = 0;
-          prevScrollHeight = newScrollHeight;
-        }
-        if (noGrowthCount >= maxNoGrowth) break;
+        finalScrollHeight = newScrollHeight;
+        this.logger.log(`到底检测: newY=${currentY}, newScrollH=${newScrollHeight}`);
+        if (newScrollHeight <= scrollHeight) break;
       }
     }
 
-    this.logger.log(`分段截图完成，共 ${segments.length} 段，开始拼接...`);
+    this.logger.log(`分段截图完成，共 ${segments.length} 段，最终scrollH=${finalScrollHeight}，开始拼接...`);
 
     if (segments.length === 1) {
       const segPath = path.join(this.SCREENSHOT_DIR, `_seg_0_final.png`);
-      fs.writeFileSync(segPath, segments[0]);
-      return segments[0];
+      fs.writeFileSync(segPath, segments[0].buffer);
+      return segments[0].buffer;
     }
 
     const segPixelHeight = viewportHeight * dpr;
     const fixedHeaderPixelHeight = fixedHeaderHeight * dpr;
 
-    /** 先把每段保存为临时文件并裁剪掉顶部栏 */
+    /** 保存原始段文件 */
     const tempFiles: string[] = [];
     for (let i = 0; i < segments.length; i++) {
       const segPath = path.join(this.SCREENSHOT_DIR, `_seg_${i}_${Date.now()}.png`);
-      fs.writeFileSync(segPath, segments[i]);
+      fs.writeFileSync(segPath, segments[i].buffer);
       tempFiles.push(segPath);
-      this.logger.log(`临时段文件: ${segPath} (${(segments[i].length / 1024).toFixed(1)}KB)`);
+      this.logger.log(`临时段文件: ${segPath} (${(segments[i].buffer.length / 1024).toFixed(1)}KB), scrollY=${segments[i].scrollY}`);
     }
 
-    /** 裁剪每段的固定顶部栏（第一段保留，后续段裁掉） */
+    /**
+     * 精确裁剪每段：
+     * - 第一段：保留完整视口（含顶部栏），裁掉超出 scrollHeight 的底部空白
+     * - 中间段：裁掉顶部栏区域
+     * - 最后一段：从底部往上截取实际内容高度，避免底部空白+虚拟滚动导致内容错位
+     */
     const croppedFiles: string[] = [];
+    const isLast = (i: number) => i === segments.length - 1;
+
     for (let i = 0; i < tempFiles.length; i++) {
-      if (i === 0 || fixedHeaderHeight <= 0) {
-        croppedFiles.push(tempFiles[i]);
-      } else {
-        const croppedPath = path.join(this.SCREENSHOT_DIR, `_seg_${i}_cropped_${Date.now()}.png`);
+      const seg = segments[i];
+      const croppedPath = path.join(this.SCREENSHOT_DIR, `_seg_${i}_cropped_${Date.now()}.png`);
+
+      if (isLast(i) && segments.length > 1) {
+        /** 最后一段：从图片底部往上截取实际内容高度 */
+        const bottomContentHeight = finalScrollHeight - seg.scrollY;
+        const cropHeight = bottomContentHeight * dpr;
+        const cropTop = segPixelHeight - cropHeight;
+
         await sharp(tempFiles[i])
           .extract({
-            top: fixedHeaderPixelHeight,
+            top: Math.round(cropTop),
             left: 0,
             width: canvasWidth,
-            height: segPixelHeight - fixedHeaderPixelHeight,
+            height: Math.round(cropHeight),
           })
           .toFile(croppedPath);
         croppedFiles.push(croppedPath);
-        this.logger.log(`裁剪顶部栏: ${croppedPath}`);
+        this.logger.log(`裁剪最后段${i}: bottomContentH=${bottomContentHeight}, cropTop=${Math.round(cropTop)}, cropHeight=${Math.round(cropHeight)}`);
+      } else {
+        /** 非最后一段：从顶部裁掉 fixed header */
+        const cropTop = (i === 0 || fixedHeaderHeight <= 0) ? 0 : fixedHeaderPixelHeight;
+        const contentEnd = seg.scrollY + viewportHeight;
+        const actualContentEnd = Math.min(contentEnd, finalScrollHeight);
+        const effectiveHeight = actualContentEnd - seg.scrollY;
+        const cropHeight = Math.max(1, (effectiveHeight * dpr) - cropTop);
+
+        await sharp(tempFiles[i])
+          .extract({
+            top: cropTop,
+            left: 0,
+            width: canvasWidth,
+            height: cropHeight,
+          })
+          .toFile(croppedPath);
+        croppedFiles.push(croppedPath);
+        this.logger.log(`裁剪段${i}: cropTop=${cropTop}, cropHeight=${cropHeight}, effectiveH=${effectiveHeight}`);
       }
     }
 
-    /** 计算每段实际有效高度（设备像素） */
-    const firstSegHeight = segPixelHeight;
-    const otherSegHeight = fixedHeaderHeight > 0 ? segPixelHeight - fixedHeaderPixelHeight : segPixelHeight;
+    /** 逐段拼接：用 sharp 逐个 extend + composite */
+    let resultBuffer = await sharp(croppedFiles[0]).png().toBuffer();
 
-    /** 拼接所有段 */
-    const baseMeta = await sharp(croppedFiles[0]).metadata();
-    this.logger.log(`第一段元数据: ${JSON.stringify({ width: baseMeta.width, height: baseMeta.height, channels: baseMeta.channels, format: baseMeta.format })}`);
+    for (let i = 1; i < croppedFiles.length; i++) {
+      const segMeta = await sharp(resultBuffer).metadata();
+      const nextMeta = await sharp(croppedFiles[i]).metadata();
 
-    const totalPixelHeight = firstSegHeight + otherSegHeight * (croppedFiles.length - 1);
-    const extendBottom = totalPixelHeight - (baseMeta.height || firstSegHeight);
-
-    const composites = croppedFiles.slice(1).map((filePath, index) => ({
-      input: filePath,
-      top: firstSegHeight + index * otherSegHeight,
-      left: 0,
-    }));
-
-    const stitchedBuffer = await sharp(croppedFiles[0])
-      .extend({
-        top: 0,
-        bottom: Math.max(0, extendBottom),
-        left: 0,
-        right: 0,
-        background: { r: 255, g: 255, b: 255, alpha: 1 },
-      })
-      .composite(composites)
-      .png()
-      .toBuffer();
-
-    /** 按实际 scrollHeight 裁剪底部多余白边 */
-    const totalCssHeight = prevScrollHeight;
-    const totalCropPixelHeight = totalCssHeight * dpr;
-    if (totalCropPixelHeight < totalPixelHeight) {
-      const finalBuffer = await sharp(stitchedBuffer)
-        .extract({ top: 0, left: 0, width: baseMeta.width || canvasWidth, height: totalCropPixelHeight })
+      resultBuffer = await sharp(resultBuffer)
+        .extend({
+          top: 0,
+          bottom: nextMeta.height || 0,
+          left: 0,
+          right: 0,
+          background: { r: 255, g: 255, b: 255, alpha: 1 },
+        })
+        .composite([{
+          input: croppedFiles[i],
+          top: segMeta.height || 0,
+          left: 0,
+        }])
+        .png()
         .toBuffer();
-      this.logger.log(`底部裁剪完成: 总CSS高度=${totalCssHeight}px, 设备像素=${totalCropPixelHeight}px`);
-      return finalBuffer;
+
+      this.logger.log(`拼接段${i}: 累计高度=${(segMeta.height || 0) + (nextMeta.height || 0)}px`);
     }
 
-    this.logger.log(`拼接完成: 总高度=${totalPixelHeight}px (设备像素)`);
-    return stitchedBuffer;
+    const finalMeta = await sharp(resultBuffer).metadata();
+    this.logger.log(`拼接完成: 最终高度=${finalMeta.height}px, 宽度=${finalMeta.width}px`);
+    return resultBuffer;
   }
 
   /** 每天凌晨3点清理超过30天的截图文件 */
