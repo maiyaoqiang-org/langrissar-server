@@ -7,7 +7,11 @@ import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { ScreenshotDto } from './dto/screenshot.dto';
-import { FEISHU_WEBHOOK_MOYUAN_SCREENSHOT_URL, SERVER_BASE_URL } from '../config/baseConfig';
+import {
+  FEISHU_WEBHOOK_URL,
+  FEISHU_WEBHOOK_MOYUAN_SCREENSHOT_URL,
+  SERVER_BASE_URL
+} from '../config/baseConfig';
 
 // 用法
 // https://maiyaoqiang.fun/api/screenshot?url=https://my.feishu.cn/docx/M3CndOaXQowS1ixfh7mc7IsZnJ2&width=414
@@ -214,10 +218,13 @@ export class ScreenshotService {
   /** 发送飞书文本消息 */
   private async sendFeishuText(text: string) {
     try {
-      await axios.post(FEISHU_WEBHOOK_MOYUAN_SCREENSHOT_URL, {
-        msg_type: 'text',
-        content: { text },
-      });
+      await axios.post(
+        FEISHU_WEBHOOK_URL
+        // FEISHU_WEBHOOK_MOYUAN_SCREENSHOT_URL
+        , {
+          msg_type: 'text',
+          content: { text },
+        });
     } catch (error) {
       this.logger.error(`飞书文本消息发送失败: ${error.message}`);
     }
