@@ -36,6 +36,7 @@ export class UserService {
     private jwtService: JwtService
   ) {}
 
+  /** 用户注册 */
   async register(createUserDto: CreateUserDto) {
     // 验证验证码
     const captchaData = this.captchaStore.get(createUserDto.captchaId);
@@ -86,6 +87,7 @@ export class UserService {
     return this.generateTokenResponse(savedUser);
   }
 
+  /** 管理端创建用户 */
   async createUser(adminId: number, createUserDto: AdminCreateUserDto) {
     // 创建新用户
     const newUser = this.userRepository.create({
@@ -101,6 +103,7 @@ export class UserService {
     return savedUser;
   }
 
+  /** 用户登录 */
   async login(loginDto: LoginDto) {
     const user = await this.userRepository.findOne({
       where: { phone: loginDto.phone },
@@ -138,6 +141,7 @@ export class UserService {
     return this.generateTokenResponse(user);
   }
 
+  /** 生成验证码（通用） */
   async generateCaptcha() {
     // 生成验证码
     const captcha = svgCaptcha.create({
@@ -170,6 +174,7 @@ export class UserService {
     };
   }
 
+  /** 创建邀请码 */
   async createInvitationCodes(userId: number, dto: CreateInvitationCodeDto) {
     const user = await this.userRepository.findOne({
       where: { id: userId },
@@ -192,6 +197,7 @@ export class UserService {
     return codes;
   }
 
+  /** 生成随机邀请码 */
   private generateRandomCode(): string {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     let code = "";
@@ -201,6 +207,7 @@ export class UserService {
     return code;
   }
 
+  /** 分页查询邀请码 */
   async queryInvitationCodes(userId: number, queryDto: QueryInvitationCodeDto) {
     const user = await this.userRepository.findOne({
       where: { id: userId },
@@ -256,6 +263,7 @@ export class UserService {
     };
   }
 
+  /** 分页查询用户 */
   async queryUsers(userId: number, queryDto: QueryUserDto) {
     const user = await this.userRepository.findOne({
       where: { id: userId },
@@ -303,6 +311,7 @@ export class UserService {
     };
   }
 
+  /** 更新用户信息 */
   async updateUser(currentAdminId: number, updateUserDto: UpdateUserDto) {
     const user = await this.userRepository.findOne({
       where: { id: updateUserDto.id },
@@ -365,6 +374,7 @@ export class UserService {
     return this.userRepository.findOne({ where: { id: updateUserDto.id } });
   }
 
+  /** 管理端更新用户密码 */
   async updatePassword(userId: number, password: string) {
     const user = await this.userRepository.findOne({
       where: { id: userId },
@@ -381,6 +391,7 @@ export class UserService {
     return { message: "密码更新成功" };
   }
 
+  /** 用户修改自己的密码 */
   async changePassword(userId: number, changePasswordDto: ChangePasswordDto) {
     const user = await this.userRepository.findOne({
       where: { id: userId },
@@ -406,6 +417,7 @@ export class UserService {
     return { message: "密码修改成功" };
   }
 
+  /** 生成 token 响应 */
   private generateTokenResponse(user: User) {
     const payload = { 
       sub: user.id, 
@@ -419,5 +431,20 @@ export class UserService {
       access_token: token,
       expireIn: tokenInfo.exp,
     };
+  }
+
+  /** 校验并消费验证码（校验失败会抛出异常） */
+  consumeCaptchaOrThrow(captchaId: string, captcha: string) {
+    const captchaData = this.captchaStore.get(captchaId);
+
+    if (
+      !captchaData ||
+      captchaData.text !== (captcha || '').toUpperCase() ||
+      captchaData.expireAt < new Date()
+    ) {
+      throw new BadRequestException("验证码无效或已过期");
+    }
+
+    this.captchaStore.delete(captchaId);
   }
 }

@@ -36,9 +36,9 @@ jobs:
           username: ${{ secrets.SERVER_USERNAME }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            # 创建日志和截图目录并设置权限
-            mkdir -p /data/langrissar/logs /data/langrissar/screenshots
-            chmod 777 /data/langrissar/logs /data/langrissar/screenshots
+            # 创建日志、截图、问题反馈上传目录并设置权限
+            mkdir -p /data/langrissar/logs /data/langrissar/screenshots /data/langrissar/issue_uploads
+            chmod 777 /data/langrissar/logs /data/langrissar/screenshots /data/langrissar/issue_uploads
 
             # 清理未使用的同名镜像
             docker images --format "{{.Repository}}:{{.Tag}}" | grep "crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server" | xargs -r docker rmi
@@ -91,6 +91,7 @@ jobs:
               -e NODE_ENV=production \
               -v /data/langrissar/logs:/app/logs \
               -v /data/langrissar/screenshots:/app/screenshots \
+              -v /data/langrissar/issue_uploads:/app/issue_uploads \
               --name langrissar-server-$NEW_COLOR \
               crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest
             

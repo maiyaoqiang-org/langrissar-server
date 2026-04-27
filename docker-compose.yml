@@ -18,6 +18,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./screenshots:/app/screenshots
+      - ./issue_uploads:/app/issue_uploads
     command: >
       sh -c "npm run migration:run && node dist/src/main.js"
 

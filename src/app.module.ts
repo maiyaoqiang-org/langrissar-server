@@ -21,6 +21,7 @@ import { NacosModule } from './nacos/nacos.module';
 import { CronJobModule } from './cron-job/cron-job.module';
 import { CustomContentModule } from './custom-content/custom-content.module';
 import { ScreenshotModule } from './screenshot/screenshot.module';
+import { IssueModule } from './issue/issue.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { ScreenshotModule } from './screenshot/screenshot.module';
     CronJobModule,
     CustomContentModule,
     ScreenshotModule,
+    IssueModule,
   ],
   controllers: [AppController],
   providers: [
