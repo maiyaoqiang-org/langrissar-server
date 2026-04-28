@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Res, UploadedFile, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, Res, UploadedFile, UploadedFiles, UseInterceptors } from '@nestjs/common';
 import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import * as fs from 'fs';
@@ -59,6 +59,22 @@ export class IssueController {
   /** 视频临时上传（单文件，存内存） */
   uploadTempVideo(@UploadedFile() file: any) {
     return this.issueService.uploadTempVideo(file);
+  }
+
+  @Public()
+  @Post('upload/video-temp/cleanup')
+  @ApiOperation({ summary: '清理临时视频（用于提交失败回收）' })
+  /** 清理临时视频 */
+  cleanupTempVideos(@Body('tempIds') tempIds: string[]) {
+    return this.issueService.cleanupTempVideosByIds(tempIds);
+  }
+
+  @Public()
+  @Delete('upload/images/batch/:batchId')
+  @ApiOperation({ summary: '清理图片批次（用于提交失败回收）' })
+  /** 清理图片批次 */
+  cleanupImageBatch(@Param('batchId') batchId: string) {
+    return this.issueService.cleanupImageBatch(batchId);
   }
 
   @Public()

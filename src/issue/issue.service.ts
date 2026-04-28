@@ -21,6 +21,13 @@ type TempVideoItem = {
   createdAt: number;
 };
 
+type TempImageBatchItem = {
+  id: string;
+  urls: string[];
+  filepaths: string[];
+  createdAt: number;
+};
+
 type UploadedFileLike = {
   originalname: string;
   mimetype: string;
@@ -41,9 +48,11 @@ export class IssueService {
   private readonly MAX_IMAGE_BYTES = 10 * 1024 * 1024;
   private readonly MAX_VIDEO_BYTES = 200 * 1024 * 1024;
 
+  private readonly TMP_IMAGE_TTL_MS = 2 * 60 * 60 * 1000;
   private readonly TMP_VIDEO_TTL_MS = 2 * 60 * 60 * 1000;
   private readonly TMP_VIDEO_MAX_TOTAL_BYTES = 5 * 1024 * 1024 * 1024;
 
+  private tmpImageBatches: Map<string, TempImageBatchItem> = new Map();
   private tmpVideos: Map<string, TempVideoItem> = new Map();
   private tmpVideosTotalBytes = 0;
 
@@ -107,7 +116,7 @@ export class IssueService {
     }
   }
 
-  /** 上传图片并落盘，返回可访问 URL 列表 */
+  /** 上传图片并落盘，返回可访问 URL 列表与批次ID（用于失败时回收） */
   async uploadImages(files: UploadedFileLike[]) {
     if (!files?.length) {
       throw new BadRequestException('请选择图片');
@@ -122,16 +131,20 @@ export class IssueService {
       }
     }
 
+    const batchId = uuidv4();
     const urls: string[] = [];
+    const filepaths: string[] = [];
     for (const f of files) {
       const ext = this.safeExt(f.originalname) || '.png';
       const filename = `${uuidv4()}${ext}`;
       const filepath = path.join(this.IMAGE_DIR, filename);
       await fs.promises.writeFile(filepath, f.buffer);
       urls.push(`${this.IMAGE_BASE_URL}/${filename}`);
+      filepaths.push(filepath);
     }
 
-    return { urls };
+    this.tmpImageBatches.set(batchId, { id: batchId, urls, filepaths, createdAt: Date.now() });
+    return { batchId, urls };
   }
 
   /** 上传视频到内存临时缓存，返回 tempId */
@@ -166,11 +179,63 @@ export class IssueService {
     return { tempId: id, size: item.size, originalName: item.originalName };
   }
 
+  /** 清理指定图片批次（用于提交失败回收） */
+  async cleanupImageBatch(batchId: string) {
+    if (!batchId) {
+      throw new BadRequestException('batchId不能为空');
+    }
+
+    const batch = this.tmpImageBatches.get(batchId);
+    if (!batch) {
+      return { batchId, deletedCount: 0 };
+    }
+
+    let deletedCount = 0;
+    for (const fp of batch.filepaths) {
+      if (!fp) continue;
+      if (fs.existsSync(fp)) {
+        await fs.promises.unlink(fp).catch(() => undefined);
+        deletedCount += 1;
+      }
+    }
+
+    this.tmpImageBatches.delete(batchId);
+    return { batchId, deletedCount };
+  }
+
+  /** 清理指定临时视频（用于提交失败回收） */
+  cleanupTempVideosByIds(tempIds: string[]) {
+    const ids = Array.isArray(tempIds) ? tempIds.filter(Boolean) : [];
+    let deletedCount = 0;
+    for (const id of ids) {
+      const item = this.tmpVideos.get(id);
+      if (!item) continue;
+      this.tmpVideos.delete(id);
+      this.tmpVideosTotalBytes -= item.size;
+      deletedCount += 1;
+    }
+    if (this.tmpVideosTotalBytes < 0) {
+      this.tmpVideosTotalBytes = 0;
+    }
+    return { deletedCount };
+  }
+
   /** 提交问题反馈：校验验证码，落库，并将临时视频一次性落盘 */
   async submit(dto: CreateIssueFeedbackDto) {
     this.userService.consumeCaptchaOrThrow(dto.captchaId, dto.captcha);
 
-    const imageUrls = dto.imageUrls?.filter(Boolean) || [];
+    let usedImageBatchId = '';
+    let imageUrls: string[] = [];
+    if (dto.imageBatchId) {
+      usedImageBatchId = dto.imageBatchId;
+      const batch = this.tmpImageBatches.get(dto.imageBatchId);
+      if (!batch) {
+        throw new BadRequestException('图片已过期，请重新上传');
+      }
+      imageUrls = batch.urls || [];
+    } else {
+      imageUrls = dto.imageUrls?.filter(Boolean) || [];
+    }
     const videoTempIds = dto.videoTempIds?.filter(Boolean) || [];
 
     if (videoTempIds.length > 5) {
@@ -210,6 +275,10 @@ export class IssueService {
     });
 
     await this.issueFeedbackRepository.save(entity);
+
+    if (usedImageBatchId) {
+      this.tmpImageBatches.delete(usedImageBatchId);
+    }
     return { id: entity.id };
   }
 
@@ -328,6 +397,22 @@ export class IssueService {
     }
     if (this.tmpVideosTotalBytes < 0) {
       this.tmpVideosTotalBytes = 0;
+    }
+  }
+
+  @Cron('*/10 * * * *')
+  /** 定时清理过期的图片批次（删除未提交的落盘文件） */
+  async cleanupTempImageBatches() {
+    const now = Date.now();
+    for (const [id, batch] of this.tmpImageBatches.entries()) {
+      if (batch.createdAt + this.TMP_IMAGE_TTL_MS >= now) continue;
+      for (const fp of batch.filepaths) {
+        if (!fp) continue;
+        if (fs.existsSync(fp)) {
+          await fs.promises.unlink(fp).catch(() => undefined);
+        }
+      }
+      this.tmpImageBatches.delete(id);
     }
   }
 }

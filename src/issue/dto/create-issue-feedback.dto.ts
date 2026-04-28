@@ -26,6 +26,11 @@ export class CreateIssueFeedbackDto {
   @IsString({ each: true })
   imageUrls?: string[];
 
+  @ApiProperty({ description: '图片上传批次ID（用于失败时回收）', required: false })
+  @IsOptional()
+  @IsString()
+  imageBatchId?: string;
+
   @ApiProperty({ description: '视频临时ID列表', required: false, type: [String], maxItems: 5 })
   @IsOptional()
   @IsArray()
@@ -33,4 +38,3 @@ export class CreateIssueFeedbackDto {
   @IsString({ each: true })
   videoTempIds?: string[];
 }
-
