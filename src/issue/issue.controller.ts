@@ -62,6 +62,14 @@ export class IssueController {
   }
 
   @Public()
+  @Delete('open/:id')
+  @ApiOperation({ summary: '开放接口：删除问题反馈并清理资源' })
+  /** 开放删除（无需token） */
+  removeOpen(@Param('id') id: string) {
+    return this.issueService.openRemove(id);
+  }
+
+  @Public()
   @Post('upload/video-temp/cleanup')
   @ApiOperation({ summary: '清理临时视频（用于提交失败回收）' })
   /** 清理临时视频 */

@@ -8,5 +8,6 @@ import { CustomContent } from './entities/custom-content.entity';
   imports: [TypeOrmModule.forFeature([CustomContent])],
   controllers: [CustomContentController],
   providers: [CustomContentService],
+  exports: [CustomContentService],
 })
 export class CustomContentModule {}

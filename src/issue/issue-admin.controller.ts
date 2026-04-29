@@ -1,16 +1,13 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
-import { Roles } from '../auth/roles.decorator';
 import { IssueService } from './issue.service';
 import { QueryIssueFeedbackDto } from './dto/query-issue-feedback.dto';
 import { UpdateIssueFeedbackDto } from './dto/update-issue-feedback.dto';
 
 @ApiTags('问题反馈-管理端')
 @Controller('issue/admin')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('admin')
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class IssueAdminController {
   /** 注入服务 */

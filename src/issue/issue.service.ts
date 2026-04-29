@@ -5,12 +5,14 @@ import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
+import axios from 'axios';
 import { SERVER_BASE_URL } from '../config/baseConfig';
 import { IssueFeedback } from './entities/issue-feedback.entity';
 import { CreateIssueFeedbackDto } from './dto/create-issue-feedback.dto';
 import { QueryIssueFeedbackDto } from './dto/query-issue-feedback.dto';
 import { UpdateIssueFeedbackDto } from './dto/update-issue-feedback.dto';
 import { UserService } from '../user/user.service';
+import { CustomContentService } from '../custom-content/custom-content.service';
 
 type TempVideoItem = {
   id: string;
@@ -44,6 +46,8 @@ export class IssueService {
   private readonly FILES_BASE_URL = `${SERVER_BASE_URL}/issue/files`;
   private readonly IMAGE_BASE_URL = `${this.FILES_BASE_URL}/images`;
   private readonly VIDEO_BASE_URL = `${this.FILES_BASE_URL}/videos`;
+  
+  private readonly COZE_CHAT_URL = 'https://api.coze.cn/v3/chat';
 
   private readonly MAX_IMAGE_BYTES = 10 * 1024 * 1024;
   private readonly MAX_VIDEO_BYTES = 200 * 1024 * 1024;
@@ -61,6 +65,7 @@ export class IssueService {
     @InjectRepository(IssueFeedback)
     private issueFeedbackRepository: Repository<IssueFeedback>,
     private userService: UserService,
+    private customContentService: CustomContentService,
   ) {
     this.ensureDirs();
   }
@@ -103,6 +108,56 @@ export class IssueService {
       return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
+    }
+  }
+
+  /** 构建安全的curl（会对token做脱敏） */
+  private buildCurl(url: string, headers: Record<string, string>, data: any) {
+    const maskedHeaders: Record<string, string> = { ...headers };
+
+    const payload = JSON.stringify(data ?? {});
+    const safePayload = payload.replace(/'/g, `'\\''`);
+
+    const parts: string[] = [`curl -X POST '${url}'`];
+    for (const [k, v] of Object.entries(maskedHeaders)) {
+      parts.push(`-H '${k}: ${String(v).replace(/'/g, `'\\''`)}'`);
+    }
+    parts.push(`-d '${safePayload}'`);
+    return parts.join(' ');
+  }
+
+  /** 提交成功后通知Coze（失败不影响主流程） */
+  private async notifyCozeOnSubmit(payload: any) {
+    try {
+      const tokenEntity = await this.customContentService.findOneByKey('app-config');
+      const token = (tokenEntity?.content || '').trim();
+      if (!token) {
+        console.warn('[issue] Coze token empty in custom-content key=app-config');
+        return;
+      }
+
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      };
+
+      const data = {
+        bot_id: '7632379384992825379',
+        user_id: 'scheduler',
+        auto_save_history: true,
+        additional_messages: [
+          {
+            role: '粉丝问题',
+            content: JSON.stringify(payload),
+            content_type: 'text',
+          },
+        ],
+      };
+
+      console.log(this.buildCurl(this.COZE_CHAT_URL, headers, data));
+      await axios.post(this.COZE_CHAT_URL, data, { headers, timeout: 15000 });
+    } catch (e: any) {
+      console.warn('[issue] notify coze failed:', e?.message || e);
     }
   }
 
@@ -279,6 +334,14 @@ export class IssueService {
     if (usedImageBatchId) {
       this.tmpImageBatches.delete(usedImageBatchId);
     }
+    this.notifyCozeOnSubmit({
+      id: entity.id,
+      nickname: entity.nickname,
+      question: entity.question,
+      imageUrls,
+      videoUrls,
+      createdAt: entity.createdAt,
+    });
     return { id: entity.id };
   }
 
@@ -373,6 +436,11 @@ export class IssueService {
 
     await this.issueFeedbackRepository.softRemove(entity);
     return { id };
+  }
+
+  /** 开放接口：删除问题反馈并清理资源文件 */
+  async openRemove(id: string) {
+    return this.adminRemove(id);
   }
 
   /** 获取图片文件本地路径 */
