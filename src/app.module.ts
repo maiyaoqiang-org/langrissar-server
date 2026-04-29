@@ -22,6 +22,7 @@ import { CronJobModule } from './cron-job/cron-job.module';
 import { CustomContentModule } from './custom-content/custom-content.module';
 import { ScreenshotModule } from './screenshot/screenshot.module';
 import { IssueModule } from './issue/issue.module';
+import { FeishuStorageModule } from './feishu-storage/feishu-storage.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { IssueModule } from './issue/issue.module';
     CustomContentModule,
     ScreenshotModule,
     IssueModule,
+    FeishuStorageModule,
   ],
   controllers: [AppController],
   providers: [

@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
@@ -13,29 +12,7 @@ import { QueryIssueFeedbackDto } from './dto/query-issue-feedback.dto';
 import { UpdateIssueFeedbackDto } from './dto/update-issue-feedback.dto';
 import { UserService } from '../user/user.service';
 import { CustomContentService } from '../custom-content/custom-content.service';
-
-type TempVideoItem = {
-  id: string;
-  originalName: string;
-  mimeType: string;
-  size: number;
-  buffer: Buffer;
-  createdAt: number;
-};
-
-type TempImageBatchItem = {
-  id: string;
-  urls: string[];
-  filepaths: string[];
-  createdAt: number;
-};
-
-type UploadedFileLike = {
-  originalname: string;
-  mimetype: string;
-  size: number;
-  buffer: Buffer;
-};
+import { FeishuStorageService } from '../feishu-storage/feishu-storage.service';
 
 @Injectable()
 export class IssueService {
@@ -52,28 +29,15 @@ export class IssueService {
   private readonly MAX_IMAGE_BYTES = 10 * 1024 * 1024;
   private readonly MAX_VIDEO_BYTES = 200 * 1024 * 1024;
 
-  private readonly TMP_IMAGE_TTL_MS = 2 * 60 * 60 * 1000;
-  private readonly TMP_VIDEO_TTL_MS = 2 * 60 * 60 * 1000;
-  private readonly TMP_VIDEO_MAX_TOTAL_BYTES = 5 * 1024 * 1024 * 1024;
-  private readonly ISSUE_FILES_MAX_TOTAL_BYTES = 5 * 1024 * 1024 * 1024;
-  private readonly ISSUE_FILES_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
-  private readonly ISSUE_FILES_SIZE_CACHE_MS = 12 * 60 * 60 * 1000;
-
-  private tmpImageBatches: Map<string, TempImageBatchItem> = new Map();
-  private tmpVideos: Map<string, TempVideoItem> = new Map();
-  private tmpVideosTotalBytes = 0;
-  private issueFilesTotalBytesCache = { bytes: 0, updatedAt: 0 };
-  private issueFilesSizeRefreshPromise: Promise<number> | null = null;
-
   /** 初始化：创建存储目录 */
   constructor(
     @InjectRepository(IssueFeedback)
     private issueFeedbackRepository: Repository<IssueFeedback>,
     private userService: UserService,
     private customContentService: CustomContentService,
+    private feishuStorageService: FeishuStorageService,
   ) {
     this.ensureDirs();
-    this.refreshIssueFilesTotalBytesInBackground();
   }
 
   /** 确保上传目录存在 */
@@ -89,123 +53,13 @@ export class IssueService {
     }
   }
 
-  /** 统计目录大小（字节） */
-  private async getDirectorySizeBytes(dir: string): Promise<number> {
-    try {
-      const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-      let total = 0;
-      for (const ent of entries) {
-        const full = path.join(dir, ent.name);
-        if (ent.isDirectory()) {
-          total += await this.getDirectorySizeBytes(full);
-        } else if (ent.isFile()) {
-          const st = await fs.promises.stat(full).catch(() => undefined);
-          total += st?.size || 0;
-        }
-      }
-      return total;
-    } catch {
-      return 0;
-    }
-  }
-
-  /** 统计问题反馈上传文件总占用（图片+视频，字节） */
-  private async getIssueFilesTotalBytes(): Promise<number> {
-    if (this.issueFilesTotalBytesCache.updatedAt) {
-      return this.issueFilesTotalBytesCache.bytes;
-    }
-    return this.refreshIssueFilesTotalBytes();
-  }
-
-  /** 刷新问题反馈上传文件总占用（图片+视频，字节） */
-  private async refreshIssueFilesTotalBytes(): Promise<number> {
-    if (this.issueFilesSizeRefreshPromise) {
-      return this.issueFilesSizeRefreshPromise;
-    }
-
-    this.issueFilesSizeRefreshPromise = (async () => {
-      const [img, vid] = await Promise.all([
-        this.getDirectorySizeBytes(this.IMAGE_DIR),
-        this.getDirectorySizeBytes(this.VIDEO_DIR),
-      ]);
-      const total = img + vid;
-      this.issueFilesTotalBytesCache = { bytes: total, updatedAt: Date.now() };
-      this.issueFilesSizeRefreshPromise = null;
-      return total;
-    })().catch((e) => {
-      this.issueFilesSizeRefreshPromise = null;
-      throw e;
-    });
-
-    return this.issueFilesSizeRefreshPromise;
-  }
-
-  /** 异步刷新（不阻塞主流程） */
-  private refreshIssueFilesTotalBytesInBackground() {
-    void this.refreshIssueFilesTotalBytes().catch(() => undefined);
-  }
-
-  /** 触发后台刷新：缓存过期时刷新；刷新中则直接跳过 */
-  private triggerIssueFilesSizeRefreshIfNeeded() {
-    const now = Date.now();
-    if (!this.issueFilesTotalBytesCache.updatedAt) {
-      this.refreshIssueFilesTotalBytesInBackground();
-      return;
-    }
-    if (now - this.issueFilesTotalBytesCache.updatedAt < this.ISSUE_FILES_SIZE_CACHE_MS) return;
-    if (this.issueFilesSizeRefreshPromise) return;
-    this.refreshIssueFilesTotalBytesInBackground();
-  }
-
-  /** 调整本地缓存的磁盘占用（避免频繁全量扫描） */
-  private bumpIssueFilesTotalBytes(deltaBytes: number) {
-    if (!Number.isFinite(deltaBytes) || deltaBytes === 0) return;
-    if (!this.issueFilesTotalBytesCache.updatedAt) return;
-    this.issueFilesTotalBytesCache.bytes += deltaBytes;
-    if (this.issueFilesTotalBytesCache.bytes < 0) this.issueFilesTotalBytesCache.bytes = 0;
-    this.issueFilesTotalBytesCache.updatedAt = Date.now();
-  }
-
-  /** 校验磁盘空间上限（用于限制issue_uploads总占用） */
-  private async assertIssueDiskSpace(extraBytes: number) {
-    if (!Number.isFinite(extraBytes) || extraBytes <= 0) return;
-    if (!this.issueFilesTotalBytesCache.updatedAt) {
-      await this.refreshIssueFilesTotalBytes().catch(() => undefined);
-    } else {
-      this.triggerIssueFilesSizeRefreshIfNeeded();
-    }
-    const current = await this.getIssueFilesTotalBytes();
-    if (current + extraBytes > this.ISSUE_FILES_MAX_TOTAL_BYTES) {
-      throw new BadRequestException('容量已超上限，请联系管理员处理');
-    }
-  }
-
-  /** 清理目录中过期文件（按mtime判断） */
-  private async cleanupExpiredFilesInDir(dir: string, expireMs: number) {
-    const now = Date.now();
-    try {
-      const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-      for (const ent of entries) {
-        const full = path.join(dir, ent.name);
-        if (!ent.isFile()) continue;
-        const st = await fs.promises.stat(full).catch(() => undefined);
-        if (!st) continue;
-        if (st.mtimeMs + expireMs <= now) {
-          await fs.promises.unlink(full).then(() => this.bumpIssueFilesTotalBytes(-st.size)).catch(() => undefined);
-        }
-      }
-    } catch {
-      return;
-    }
-  }
-
   /** 判断是否为图片 */
-  private isImage(file: UploadedFileLike) {
+  private isImage(file: Pick<Express.Multer.File, 'mimetype'>) {
     return Boolean(file?.mimetype?.startsWith('image/'));
   }
 
   /** 判断是否为视频 */
-  private isVideo(file: UploadedFileLike) {
+  private isVideo(file: Pick<Express.Multer.File, 'mimetype'>) {
     return Boolean(file?.mimetype?.startsWith('video/'));
   }
 
@@ -287,245 +141,55 @@ export class IssueService {
     }
   }
 
-  /** 上传图片并落盘，返回可访问 URL 列表与批次ID（用于失败时回收） */
-  async uploadImages(files: UploadedFileLike[]) {
-    if (!files?.length) {
-      throw new BadRequestException('请选择图片');
-    }
-
-    await this.assertIssueDiskSpace(files.reduce((sum, f) => sum + (f?.size || 0), 0));
-
-    for (const f of files) {
-      if (!this.isImage(f)) {
-        throw new BadRequestException('仅支持图片上传');
-      }
-      if (f.size > this.MAX_IMAGE_BYTES) {
-        throw new BadRequestException('图片大小不能超过10MB');
-      }
-    }
-
-    const batchId = uuidv4();
-    const urls: string[] = [];
-    const filepaths: string[] = [];
-    for (const f of files) {
-      const ext = this.safeExt(f.originalname) || '.png';
-      const filename = `${uuidv4()}${ext}`;
-      const filepath = path.join(this.IMAGE_DIR, filename);
-      await fs.promises.writeFile(filepath, f.buffer);
-      this.bumpIssueFilesTotalBytes(f.size);
-      urls.push(`${this.IMAGE_BASE_URL}/${filename}`);
-      filepaths.push(filepath);
-    }
-
-    this.tmpImageBatches.set(batchId, { id: batchId, urls, filepaths, createdAt: Date.now() });
-    return { batchId, urls };
-  }
-
-  /** 追加上传图片到指定批次（用于选择资源后即时上传） */
-  async addImagesToBatch(batchId: string, files: UploadedFileLike[]) {
-    if (!batchId) {
-      throw new BadRequestException('batchId不能为空');
-    }
-    const batch = this.tmpImageBatches.get(batchId);
-    if (!batch) {
-      throw new BadRequestException('图片批次已过期，请重新上传');
-    }
-    if (!files?.length) {
-      throw new BadRequestException('请选择图片');
-    }
-
-    await this.assertIssueDiskSpace(files.reduce((sum, f) => sum + (f?.size || 0), 0));
-
-    for (const f of files) {
-      if (!this.isImage(f)) {
-        throw new BadRequestException('仅支持图片上传');
-      }
-      if (f.size > this.MAX_IMAGE_BYTES) {
-        throw new BadRequestException('图片大小不能超过10MB');
-      }
-    }
-
-    const addedUrls: string[] = [];
-    for (const f of files) {
-      const ext = this.safeExt(f.originalname) || '.png';
-      const filename = `${uuidv4()}${ext}`;
-      const filepath = path.join(this.IMAGE_DIR, filename);
-      await fs.promises.writeFile(filepath, f.buffer);
-      this.bumpIssueFilesTotalBytes(f.size);
-      const url = `${this.IMAGE_BASE_URL}/${filename}`;
-      batch.urls.push(url);
-      batch.filepaths.push(filepath);
-      addedUrls.push(url);
-    }
-
-    batch.createdAt = Date.now();
-    this.tmpImageBatches.set(batchId, batch);
-    return { batchId, urls: batch.urls, addedUrls };
-  }
-
-  /** 从批次中移除图片（用于用户删除已选图片） */
-  async removeImagesFromBatch(batchId: string, urls: string[]) {
-    if (!batchId) {
-      throw new BadRequestException('batchId不能为空');
-    }
-    const batch = this.tmpImageBatches.get(batchId);
-    if (!batch) {
-      return { batchId, deletedCount: 0 };
-    }
-
-    const targets = Array.isArray(urls) ? urls.filter(Boolean) : [];
-    if (!targets.length) {
-      return { batchId, deletedCount: 0 };
-    }
-
-    const remainingUrls: string[] = [];
-    const remainingFilepaths: string[] = [];
-    let deletedCount = 0;
-
-    for (let i = 0; i < batch.urls.length; i += 1) {
-      const url = batch.urls[i];
-      const fp = batch.filepaths[i];
-      if (targets.includes(url)) {
-        if (fp && fs.existsSync(fp)) {
-          const st = await fs.promises.stat(fp).catch(() => undefined);
-          await fs.promises.unlink(fp).then(() => this.bumpIssueFilesTotalBytes(-(st?.size || 0))).catch(() => undefined);
-        }
-        deletedCount += 1;
-        continue;
-      }
-      remainingUrls.push(url);
-      remainingFilepaths.push(fp);
-    }
-
-    batch.urls = remainingUrls;
-    batch.filepaths = remainingFilepaths;
-    batch.createdAt = Date.now();
-    this.tmpImageBatches.set(batchId, batch);
-    return { batchId, deletedCount, urls: batch.urls };
-  }
-
-  /** 上传视频到内存临时缓存，返回 tempId */
-  async uploadTempVideo(file: UploadedFileLike) {
-    if (!file) {
-      throw new BadRequestException('请选择视频');
-    }
-    if (!this.isVideo(file)) {
-      throw new BadRequestException('仅支持视频上传');
-    }
-    if (file.size > this.MAX_VIDEO_BYTES) {
-      throw new BadRequestException('视频大小不能超过200MB');
-    }
-
-    if (this.tmpVideosTotalBytes + file.size > this.TMP_VIDEO_MAX_TOTAL_BYTES) {
-      throw new BadRequestException('容量已超上限，请联系管理员处理');
-    }
-
-    const id = uuidv4();
-    const item: TempVideoItem = {
-      id,
-      originalName: file.originalname,
-      mimeType: file.mimetype,
-      size: file.size,
-      buffer: file.buffer,
-      createdAt: Date.now(),
-    };
-
-    this.tmpVideos.set(id, item);
-    this.tmpVideosTotalBytes += item.size;
-
-    return { tempId: id, size: item.size, originalName: item.originalName };
-  }
-
-  /** 清理指定图片批次（用于提交失败回收） */
-  async cleanupImageBatch(batchId: string) {
-    if (!batchId) {
-      throw new BadRequestException('batchId不能为空');
-    }
-
-    const batch = this.tmpImageBatches.get(batchId);
-    if (!batch) {
-      return { batchId, deletedCount: 0 };
-    }
-
-    let deletedCount = 0;
-    for (const fp of batch.filepaths) {
-      if (!fp) continue;
-      if (fs.existsSync(fp)) {
-        const st = await fs.promises.stat(fp).catch(() => undefined);
-        await fs.promises.unlink(fp).then(() => this.bumpIssueFilesTotalBytes(-(st?.size || 0))).catch(() => undefined);
-        deletedCount += 1;
-      }
-    }
-
-    this.tmpImageBatches.delete(batchId);
-    return { batchId, deletedCount };
-  }
-
-  /** 清理指定临时视频（用于提交失败回收） */
-  cleanupTempVideosByIds(tempIds: string[]) {
-    const ids = Array.isArray(tempIds) ? tempIds.filter(Boolean) : [];
-    let deletedCount = 0;
-    for (const id of ids) {
-      const item = this.tmpVideos.get(id);
-      if (!item) continue;
-      this.tmpVideos.delete(id);
-      this.tmpVideosTotalBytes -= item.size;
-      deletedCount += 1;
-    }
-    if (this.tmpVideosTotalBytes < 0) {
-      this.tmpVideosTotalBytes = 0;
-    }
-    return { deletedCount };
-  }
-
-  /** 提交问题反馈：校验验证码，落库，并将临时视频一次性落盘 */
-  async submit(dto: CreateIssueFeedbackDto) {
+  /** 提交问题反馈：先校验验证码，再上传图片/视频到飞书云空间并落库 */
+  async submit(dto: CreateIssueFeedbackDto, files: { images?: Express.Multer.File[]; videos?: Express.Multer.File[] }) {
     this.userService.consumeCaptchaOrThrow(dto.captchaId, dto.captcha);
 
-    let usedImageBatchId = '';
-    let imageUrls: string[] = [];
-    if (dto.imageBatchId) {
-      usedImageBatchId = dto.imageBatchId;
-      const batch = this.tmpImageBatches.get(dto.imageBatchId);
-      if (!batch) {
-        throw new BadRequestException('图片已过期，请重新上传');
-      }
-      imageUrls = batch.urls || [];
-    } else {
-      imageUrls = dto.imageUrls?.filter(Boolean) || [];
-    }
-    const videoTempIds = dto.videoTempIds?.filter(Boolean) || [];
+    const images = Array.isArray(files?.images) ? files.images : [];
+    const videos = Array.isArray(files?.videos) ? files.videos : [];
 
-    if (videoTempIds.length > 5) {
+    for (const f of images) {
+      if (!this.isImage(f)) {
+        throw new BadRequestException('仅支持图片上传');
+      }
+      if ((f.size || 0) > this.MAX_IMAGE_BYTES) {
+        throw new BadRequestException('图片大小不能超过10MB');
+      }
+    }
+
+    if (videos.length > 5) {
       throw new BadRequestException('最多上传5个视频');
     }
 
-    const videoUrls: string[] = [];
-    const totalVideoBytes = videoTempIds.reduce((sum, tid) => {
-      const item = this.tmpVideos.get(tid);
-      return sum + (item?.size || 0);
-    }, 0);
-    await this.assertIssueDiskSpace(totalVideoBytes);
-    for (const tempId of videoTempIds) {
-      const item = this.tmpVideos.get(tempId);
-      if (!item) {
-        throw new BadRequestException('存在无效或已过期的视频，请重新上传');
+    for (const f of videos) {
+      if (!this.isVideo(f)) {
+        throw new BadRequestException('仅支持视频上传');
+      }
+      if ((f.size || 0) > this.MAX_VIDEO_BYTES) {
+        throw new BadRequestException('视频大小不能超过200MB');
       }
     }
 
-    for (const tempId of videoTempIds) {
-      const item = this.tmpVideos.get(tempId);
-      if (!item) continue;
+    const imageUrls: string[] = [];
+    for (const f of images) {
+      const uploaded = await this.feishuStorageService.uploadLocalFile({
+        filepath: f.path,
+        originalName: f.originalname,
+        mimeType: f.mimetype,
+        size: f.size,
+      });
+      imageUrls.push(uploaded.url);
+    }
 
-      const ext = this.safeExt(item.originalName) || '.mp4';
-      const filename = `${uuidv4()}${ext}`;
-      const filepath = path.join(this.VIDEO_DIR, filename);
-      await fs.promises.writeFile(filepath, item.buffer);
-      this.bumpIssueFilesTotalBytes(item.size);
-      videoUrls.push(`${this.VIDEO_BASE_URL}/${filename}`);
-
-      this.tmpVideos.delete(tempId);
-      this.tmpVideosTotalBytes -= item.size;
+    const videoUrls: string[] = [];
+    for (const f of videos) {
+      const uploaded = await this.feishuStorageService.uploadLocalFile({
+        filepath: f.path,
+        originalName: f.originalname,
+        mimeType: f.mimetype,
+        size: f.size,
+      });
+      videoUrls.push(uploaded.url);
     }
 
     const entity = this.issueFeedbackRepository.create({
@@ -540,9 +204,6 @@ export class IssueService {
 
     await this.issueFeedbackRepository.save(entity);
 
-    if (usedImageBatchId) {
-      this.tmpImageBatches.delete(usedImageBatchId);
-    }
     this.notifyCozeOnSubmit({
       id: entity.id,
       nickname: entity.nickname,
@@ -616,42 +277,14 @@ export class IssueService {
     };
   }
 
-  /** 管理端删除记录并删除对应资源文件 */
+  /** 管理端删除记录 */
   async adminRemove(id: string) {
     const entity = await this.issueFeedbackRepository.findOne({ where: { id } });
     if (!entity) {
       throw new NotFoundException('记录不存在');
     }
-
-    const imageUrls = this.parseJsonArray(entity.imageUrls || '[]') as string[];
-    const videoUrls = this.parseJsonArray(entity.videoUrls || '[]') as string[];
-
-    for (const url of imageUrls) {
-      const filename = this.extractFilenameFromUrl(url);
-      if (!filename) continue;
-      const filepath = path.join(this.IMAGE_DIR, filename);
-      if (fs.existsSync(filepath)) {
-        const st = await fs.promises.stat(filepath).catch(() => undefined);
-        await fs.promises.unlink(filepath).then(() => this.bumpIssueFilesTotalBytes(-(st?.size || 0))).catch(() => undefined);
-      }
-    }
-    for (const url of videoUrls) {
-      const filename = this.extractFilenameFromUrl(url);
-      if (!filename) continue;
-      const filepath = path.join(this.VIDEO_DIR, filename);
-      if (fs.existsSync(filepath)) {
-        const st = await fs.promises.stat(filepath).catch(() => undefined);
-        await fs.promises.unlink(filepath).then(() => this.bumpIssueFilesTotalBytes(-(st?.size || 0))).catch(() => undefined);
-      }
-    }
-
     await this.issueFeedbackRepository.softRemove(entity);
     return { id };
-  }
-
-  /** 开放接口：删除问题反馈并清理资源文件 */
-  async openRemove(id: string) {
-    return this.adminRemove(id);
   }
 
   /** 获取图片文件本地路径 */
@@ -664,45 +297,4 @@ export class IssueService {
     return path.join(this.VIDEO_DIR, filename);
   }
 
-  @Cron('*/10 * * * *')
-  /** 定时清理过期的临时视频缓存 */
-  cleanupTempVideos() {
-    const now = Date.now();
-    for (const [id, item] of this.tmpVideos.entries()) {
-      if (item.createdAt + this.TMP_VIDEO_TTL_MS < now) {
-        this.tmpVideos.delete(id);
-        this.tmpVideosTotalBytes -= item.size;
-      }
-    }
-    if (this.tmpVideosTotalBytes < 0) {
-      this.tmpVideosTotalBytes = 0;
-    }
-  }
-
-  @Cron('*/10 * * * *')
-  /** 定时清理过期的图片批次（删除未提交的落盘文件） */
-  async cleanupTempImageBatches() {
-    const now = Date.now();
-    for (const [id, batch] of this.tmpImageBatches.entries()) {
-      if (batch.createdAt + this.TMP_IMAGE_TTL_MS >= now) continue;
-      for (const fp of batch.filepaths) {
-        if (!fp) continue;
-        if (fs.existsSync(fp)) {
-          const st = await fs.promises.stat(fp).catch(() => undefined);
-          await fs.promises.unlink(fp).then(() => this.bumpIssueFilesTotalBytes(-(st?.size || 0))).catch(() => undefined);
-        }
-      }
-      this.tmpImageBatches.delete(id);
-    }
-  }
-
-  @Cron('0 3 * * *')
-  /** 每日清理过期的已落盘文件（超过30天） */
-  async cleanupOldIssueFiles() {
-    await this.getIssueFilesTotalBytes();
-    await Promise.all([
-      this.cleanupExpiredFilesInDir(this.IMAGE_DIR, this.ISSUE_FILES_RETENTION_MS),
-      this.cleanupExpiredFilesInDir(this.VIDEO_DIR, this.ISSUE_FILES_RETENTION_MS),
-    ]);
-  }
 }

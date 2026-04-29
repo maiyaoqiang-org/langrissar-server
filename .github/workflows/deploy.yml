@@ -89,6 +89,10 @@ jobs:
               -e NACOS_SERVER_ADDR=172.17.0.1:8848 \
               -e NACOS_NAMESPACE=public \
               -e NODE_ENV=production \
+              -e MOYUAN_FEISHU_APP_ID=${{ secrets.MOYUAN_FEISHU_APP_ID }} \
+              -e MOYUAN_FEISHU_APP_SECRET=${{ secrets.MOYUAN_FEISHU_APP_SECRET }} \
+              -e MOYUAN_FEISHU_STORAGE_PARENT_NODE=${{ secrets.MOYUAN_FEISHU_STORAGE_PARENT_NODE }} \
+              -e MOYUAN_FEISHU_FILE_URL_PREFIX=${{ secrets.MOYUAN_FEISHU_FILE_URL_PREFIX }} \
               -v /data/langrissar/logs:/app/logs \
               -v /data/langrissar/screenshots:/app/screenshots \
               -v /data/langrissar/issue_uploads:/app/issue_uploads \

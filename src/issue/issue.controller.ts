@@ -1,9 +1,11 @@
-import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, Res, UploadedFile, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Res, UploadedFiles, UseInterceptors } from '@nestjs/common';
 import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
-import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { v4 as uuidv4 } from 'uuid';
 import { Public } from '../auth/public.decorator';
 import { IssueService } from './issue.service';
 import { CreateIssueFeedbackDto } from './dto/create-issue-feedback.dto';
@@ -15,115 +17,70 @@ export class IssueController {
   constructor(private readonly issueService: IssueService) {}
 
   @Public()
-  @Post('upload/images')
-  @ApiOperation({ summary: '上传图片（<=10MB/张）' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        images: {
-          type: 'array',
-          items: { type: 'string', format: 'binary' },
-        },
-      },
-    },
-  })
-  @UseInterceptors(
-    FilesInterceptor('images', 200, {
-      limits: { fileSize: 10 * 1024 * 1024 },
-    }),
-  )
-  /** 图片上传（多文件） */
-  uploadImages(@UploadedFiles() files: any[]) {
-    return this.issueService.uploadImages(files);
-  }
-
-  @Public()
-  @Post('upload/images/batch/:batchId/add')
-  @ApiOperation({ summary: '追加上传图片到批次（<=10MB/张）' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        images: {
-          type: 'array',
-          items: { type: 'string', format: 'binary' },
-        },
-      },
-    },
-  })
-  @UseInterceptors(
-    FilesInterceptor('images', 200, {
-      limits: { fileSize: 10 * 1024 * 1024 },
-    }),
-  )
-  /** 追加图片上传（多文件） */
-  addImagesToBatch(@Param('batchId') batchId: string, @UploadedFiles() files: any[]) {
-    return this.issueService.addImagesToBatch(batchId, files);
-  }
-
-  @Public()
-  @Post('upload/images/batch/:batchId/remove')
-  @ApiOperation({ summary: '从批次中移除图片（用于用户删除已选图片）' })
-  /** 批次移除图片 */
-  removeImagesFromBatch(@Param('batchId') batchId: string, @Body('urls') urls: string[]) {
-    return this.issueService.removeImagesFromBatch(batchId, urls);
-  }
-
-  @Public()
-  @Post('upload/video-temp')
-  @ApiOperation({ summary: '上传视频到临时缓存（<=200MB/个）' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        video: { type: 'string', format: 'binary' },
-      },
-    },
-  })
-  @UseInterceptors(
-    FileInterceptor('video', {
-      limits: { fileSize: 200 * 1024 * 1024 },
-    }),
-  )
-  /** 视频临时上传（单文件，存内存） */
-  uploadTempVideo(@UploadedFile() file: any) {
-    return this.issueService.uploadTempVideo(file);
-  }
-
-  @Public()
-  @Delete('open/:id')
-  @ApiOperation({ summary: '开放接口：删除问题反馈并清理资源' })
-  /** 开放删除（无需token） */
-  removeOpen(@Param('id') id: string) {
-    return this.issueService.openRemove(id);
-  }
-
-  @Public()
-  @Post('upload/video-temp/cleanup')
-  @ApiOperation({ summary: '清理临时视频（用于提交失败回收）' })
-  /** 清理临时视频 */
-  cleanupTempVideos(@Body('tempIds') tempIds: string[]) {
-    return this.issueService.cleanupTempVideosByIds(tempIds);
-  }
-
-  @Public()
-  @Delete('upload/images/batch/:batchId')
-  @ApiOperation({ summary: '清理图片批次（用于提交失败回收）' })
-  /** 清理图片批次 */
-  cleanupImageBatch(@Param('batchId') batchId: string) {
-    return this.issueService.cleanupImageBatch(batchId);
-  }
-
-  @Public()
   @Post('submit')
   @ApiOperation({ summary: '提交问题反馈（需要验证码）' })
-  /** 提交问题反馈（一次性将临时视频落盘并落库） */
-  submit(@Body() dto: CreateIssueFeedbackDto) {
-    return this.issueService.submit(dto);
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        nickname: { type: 'string' },
+        question: { type: 'string' },
+        captchaId: { type: 'string' },
+        captcha: { type: 'string' },
+        images: { type: 'array', items: { type: 'string', format: 'binary' } },
+        videos: { type: 'array', items: { type: 'string', format: 'binary' } },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'images', maxCount: 200 },
+        { name: 'videos', maxCount: 5 },
+      ],
+      {
+        limits: {
+          fileSize: 200 * 1024 * 1024,
+        },
+        storage: diskStorage({
+          destination: (req, file, cb) => {
+            const tmpDir = path.join(process.cwd(), 'tmp-issue-submit');
+            try {
+              fs.mkdirSync(tmpDir, { recursive: true });
+              cb(null, tmpDir);
+            } catch (e) {
+              cb(e as any, tmpDir);
+            }
+          },
+          filename: (req, file, cb) => {
+            const ext = path.extname(file.originalname || '').slice(0, 20);
+            cb(null, `${uuidv4()}${ext || ''}`);
+          },
+        }),
+      },
+    ),
+  )
+  /** 提交问题反馈：先校验验证码，再上传图片/视频到飞书云空间并落库 */
+  async submit(
+    @Body() dto: CreateIssueFeedbackDto,
+    @UploadedFiles() files: { images?: Express.Multer.File[]; videos?: Express.Multer.File[] },
+  ) {
+    try {
+      return await this.issueService.submit(dto, files);
+    } finally {
+      const allFiles: Express.Multer.File[] = [
+        ...((files?.images as Express.Multer.File[] | undefined) || []),
+        ...((files?.videos as Express.Multer.File[] | undefined) || []),
+      ];
+      for (const f of allFiles) {
+        if (f?.path && fs.existsSync(f.path)) {
+          try {
+            fs.unlinkSync(f.path);
+          } catch {}
+        }
+      }
+    }
   }
 
   @Public()

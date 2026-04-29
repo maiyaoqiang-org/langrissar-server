@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsOptional, IsString, MaxLength, ArrayMaxSize } from 'class-validator';
+import { IsString, MaxLength } from 'class-validator';
 
 export class CreateIssueFeedbackDto {
   @ApiProperty({ description: '昵称', maxLength: 50 })
@@ -19,22 +19,4 @@ export class CreateIssueFeedbackDto {
   @ApiProperty({ description: '验证码' })
   @IsString()
   captcha: string;
-
-  @ApiProperty({ description: '图片URL列表', required: false, type: [String] })
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  imageUrls?: string[];
-
-  @ApiProperty({ description: '图片上传批次ID（用于失败时回收）', required: false })
-  @IsOptional()
-  @IsString()
-  imageBatchId?: string;
-
-  @ApiProperty({ description: '视频临时ID列表', required: false, type: [String], maxItems: 5 })
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(5)
-  @IsString({ each: true })
-  videoTempIds?: string[];
 }
