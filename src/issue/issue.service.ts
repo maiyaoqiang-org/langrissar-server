@@ -321,6 +321,89 @@ export class IssueService {
     return { batchId, urls };
   }
 
+  /** 追加上传图片到指定批次（用于选择资源后即时上传） */
+  async addImagesToBatch(batchId: string, files: UploadedFileLike[]) {
+    if (!batchId) {
+      throw new BadRequestException('batchId不能为空');
+    }
+    const batch = this.tmpImageBatches.get(batchId);
+    if (!batch) {
+      throw new BadRequestException('图片批次已过期，请重新上传');
+    }
+    if (!files?.length) {
+      throw new BadRequestException('请选择图片');
+    }
+
+    await this.assertIssueDiskSpace(files.reduce((sum, f) => sum + (f?.size || 0), 0));
+
+    for (const f of files) {
+      if (!this.isImage(f)) {
+        throw new BadRequestException('仅支持图片上传');
+      }
+      if (f.size > this.MAX_IMAGE_BYTES) {
+        throw new BadRequestException('图片大小不能超过10MB');
+      }
+    }
+
+    const addedUrls: string[] = [];
+    for (const f of files) {
+      const ext = this.safeExt(f.originalname) || '.png';
+      const filename = `${uuidv4()}${ext}`;
+      const filepath = path.join(this.IMAGE_DIR, filename);
+      await fs.promises.writeFile(filepath, f.buffer);
+      this.bumpIssueFilesTotalBytes(f.size);
+      const url = `${this.IMAGE_BASE_URL}/${filename}`;
+      batch.urls.push(url);
+      batch.filepaths.push(filepath);
+      addedUrls.push(url);
+    }
+
+    batch.createdAt = Date.now();
+    this.tmpImageBatches.set(batchId, batch);
+    return { batchId, urls: batch.urls, addedUrls };
+  }
+
+  /** 从批次中移除图片（用于用户删除已选图片） */
+  async removeImagesFromBatch(batchId: string, urls: string[]) {
+    if (!batchId) {
+      throw new BadRequestException('batchId不能为空');
+    }
+    const batch = this.tmpImageBatches.get(batchId);
+    if (!batch) {
+      return { batchId, deletedCount: 0 };
+    }
+
+    const targets = Array.isArray(urls) ? urls.filter(Boolean) : [];
+    if (!targets.length) {
+      return { batchId, deletedCount: 0 };
+    }
+
+    const remainingUrls: string[] = [];
+    const remainingFilepaths: string[] = [];
+    let deletedCount = 0;
+
+    for (let i = 0; i < batch.urls.length; i += 1) {
+      const url = batch.urls[i];
+      const fp = batch.filepaths[i];
+      if (targets.includes(url)) {
+        if (fp && fs.existsSync(fp)) {
+          const st = await fs.promises.stat(fp).catch(() => undefined);
+          await fs.promises.unlink(fp).then(() => this.bumpIssueFilesTotalBytes(-(st?.size || 0))).catch(() => undefined);
+        }
+        deletedCount += 1;
+        continue;
+      }
+      remainingUrls.push(url);
+      remainingFilepaths.push(fp);
+    }
+
+    batch.urls = remainingUrls;
+    batch.filepaths = remainingFilepaths;
+    batch.createdAt = Date.now();
+    this.tmpImageBatches.set(batchId, batch);
+    return { batchId, deletedCount, urls: batch.urls };
+  }
+
   /** 上传视频到内存临时缓存，返回 tempId */
   async uploadTempVideo(file: UploadedFileLike) {
     if (!file) {

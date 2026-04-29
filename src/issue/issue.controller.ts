@@ -40,6 +40,39 @@ export class IssueController {
   }
 
   @Public()
+  @Post('upload/images/batch/:batchId/add')
+  @ApiOperation({ summary: '追加上传图片到批次（<=10MB/张）' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        images: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+        },
+      },
+    },
+  })
+  @UseInterceptors(
+    FilesInterceptor('images', 200, {
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  /** 追加图片上传（多文件） */
+  addImagesToBatch(@Param('batchId') batchId: string, @UploadedFiles() files: any[]) {
+    return this.issueService.addImagesToBatch(batchId, files);
+  }
+
+  @Public()
+  @Post('upload/images/batch/:batchId/remove')
+  @ApiOperation({ summary: '从批次中移除图片（用于用户删除已选图片）' })
+  /** 批次移除图片 */
+  removeImagesFromBatch(@Param('batchId') batchId: string, @Body('urls') urls: string[]) {
+    return this.issueService.removeImagesFromBatch(batchId, urls);
+  }
+
+  @Public()
   @Post('upload/video-temp')
   @ApiOperation({ summary: '上传视频到临时缓存（<=200MB/个）' })
   @ApiConsumes('multipart/form-data')
