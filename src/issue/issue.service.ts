@@ -55,10 +55,15 @@ export class IssueService {
   private readonly TMP_IMAGE_TTL_MS = 2 * 60 * 60 * 1000;
   private readonly TMP_VIDEO_TTL_MS = 2 * 60 * 60 * 1000;
   private readonly TMP_VIDEO_MAX_TOTAL_BYTES = 5 * 1024 * 1024 * 1024;
+  private readonly ISSUE_FILES_MAX_TOTAL_BYTES = 5 * 1024 * 1024 * 1024;
+  private readonly ISSUE_FILES_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+  private readonly ISSUE_FILES_SIZE_CACHE_MS = 12 * 60 * 60 * 1000;
 
   private tmpImageBatches: Map<string, TempImageBatchItem> = new Map();
   private tmpVideos: Map<string, TempVideoItem> = new Map();
   private tmpVideosTotalBytes = 0;
+  private issueFilesTotalBytesCache = { bytes: 0, updatedAt: 0 };
+  private issueFilesSizeRefreshPromise: Promise<number> | null = null;
 
   /** 初始化：创建存储目录 */
   constructor(
@@ -68,6 +73,7 @@ export class IssueService {
     private customContentService: CustomContentService,
   ) {
     this.ensureDirs();
+    this.refreshIssueFilesTotalBytesInBackground();
   }
 
   /** 确保上传目录存在 */
@@ -80,6 +86,116 @@ export class IssueService {
     }
     if (!fs.existsSync(this.VIDEO_DIR)) {
       fs.mkdirSync(this.VIDEO_DIR, { recursive: true });
+    }
+  }
+
+  /** 统计目录大小（字节） */
+  private async getDirectorySizeBytes(dir: string): Promise<number> {
+    try {
+      const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+      let total = 0;
+      for (const ent of entries) {
+        const full = path.join(dir, ent.name);
+        if (ent.isDirectory()) {
+          total += await this.getDirectorySizeBytes(full);
+        } else if (ent.isFile()) {
+          const st = await fs.promises.stat(full).catch(() => undefined);
+          total += st?.size || 0;
+        }
+      }
+      return total;
+    } catch {
+      return 0;
+    }
+  }
+
+  /** 统计问题反馈上传文件总占用（图片+视频，字节） */
+  private async getIssueFilesTotalBytes(): Promise<number> {
+    if (this.issueFilesTotalBytesCache.updatedAt) {
+      return this.issueFilesTotalBytesCache.bytes;
+    }
+    return this.refreshIssueFilesTotalBytes();
+  }
+
+  /** 刷新问题反馈上传文件总占用（图片+视频，字节） */
+  private async refreshIssueFilesTotalBytes(): Promise<number> {
+    if (this.issueFilesSizeRefreshPromise) {
+      return this.issueFilesSizeRefreshPromise;
+    }
+
+    this.issueFilesSizeRefreshPromise = (async () => {
+      const [img, vid] = await Promise.all([
+        this.getDirectorySizeBytes(this.IMAGE_DIR),
+        this.getDirectorySizeBytes(this.VIDEO_DIR),
+      ]);
+      const total = img + vid;
+      this.issueFilesTotalBytesCache = { bytes: total, updatedAt: Date.now() };
+      this.issueFilesSizeRefreshPromise = null;
+      return total;
+    })().catch((e) => {
+      this.issueFilesSizeRefreshPromise = null;
+      throw e;
+    });
+
+    return this.issueFilesSizeRefreshPromise;
+  }
+
+  /** 异步刷新（不阻塞主流程） */
+  private refreshIssueFilesTotalBytesInBackground() {
+    void this.refreshIssueFilesTotalBytes().catch(() => undefined);
+  }
+
+  /** 触发后台刷新：缓存过期时刷新；刷新中则直接跳过 */
+  private triggerIssueFilesSizeRefreshIfNeeded() {
+    const now = Date.now();
+    if (!this.issueFilesTotalBytesCache.updatedAt) {
+      this.refreshIssueFilesTotalBytesInBackground();
+      return;
+    }
+    if (now - this.issueFilesTotalBytesCache.updatedAt < this.ISSUE_FILES_SIZE_CACHE_MS) return;
+    if (this.issueFilesSizeRefreshPromise) return;
+    this.refreshIssueFilesTotalBytesInBackground();
+  }
+
+  /** 调整本地缓存的磁盘占用（避免频繁全量扫描） */
+  private bumpIssueFilesTotalBytes(deltaBytes: number) {
+    if (!Number.isFinite(deltaBytes) || deltaBytes === 0) return;
+    if (!this.issueFilesTotalBytesCache.updatedAt) return;
+    this.issueFilesTotalBytesCache.bytes += deltaBytes;
+    if (this.issueFilesTotalBytesCache.bytes < 0) this.issueFilesTotalBytesCache.bytes = 0;
+    this.issueFilesTotalBytesCache.updatedAt = Date.now();
+  }
+
+  /** 校验磁盘空间上限（用于限制issue_uploads总占用） */
+  private async assertIssueDiskSpace(extraBytes: number) {
+    if (!Number.isFinite(extraBytes) || extraBytes <= 0) return;
+    if (!this.issueFilesTotalBytesCache.updatedAt) {
+      await this.refreshIssueFilesTotalBytes().catch(() => undefined);
+    } else {
+      this.triggerIssueFilesSizeRefreshIfNeeded();
+    }
+    const current = await this.getIssueFilesTotalBytes();
+    if (current + extraBytes > this.ISSUE_FILES_MAX_TOTAL_BYTES) {
+      throw new BadRequestException('容量已超上限，请联系管理员处理');
+    }
+  }
+
+  /** 清理目录中过期文件（按mtime判断） */
+  private async cleanupExpiredFilesInDir(dir: string, expireMs: number) {
+    const now = Date.now();
+    try {
+      const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+      for (const ent of entries) {
+        const full = path.join(dir, ent.name);
+        if (!ent.isFile()) continue;
+        const st = await fs.promises.stat(full).catch(() => undefined);
+        if (!st) continue;
+        if (st.mtimeMs + expireMs <= now) {
+          await fs.promises.unlink(full).then(() => this.bumpIssueFilesTotalBytes(-st.size)).catch(() => undefined);
+        }
+      }
+    } catch {
+      return;
     }
   }
 
@@ -177,6 +293,8 @@ export class IssueService {
       throw new BadRequestException('请选择图片');
     }
 
+    await this.assertIssueDiskSpace(files.reduce((sum, f) => sum + (f?.size || 0), 0));
+
     for (const f of files) {
       if (!this.isImage(f)) {
         throw new BadRequestException('仅支持图片上传');
@@ -194,6 +312,7 @@ export class IssueService {
       const filename = `${uuidv4()}${ext}`;
       const filepath = path.join(this.IMAGE_DIR, filename);
       await fs.promises.writeFile(filepath, f.buffer);
+      this.bumpIssueFilesTotalBytes(f.size);
       urls.push(`${this.IMAGE_BASE_URL}/${filename}`);
       filepaths.push(filepath);
     }
@@ -249,7 +368,8 @@ export class IssueService {
     for (const fp of batch.filepaths) {
       if (!fp) continue;
       if (fs.existsSync(fp)) {
-        await fs.promises.unlink(fp).catch(() => undefined);
+        const st = await fs.promises.stat(fp).catch(() => undefined);
+        await fs.promises.unlink(fp).then(() => this.bumpIssueFilesTotalBytes(-(st?.size || 0))).catch(() => undefined);
         deletedCount += 1;
       }
     }
@@ -298,6 +418,11 @@ export class IssueService {
     }
 
     const videoUrls: string[] = [];
+    const totalVideoBytes = videoTempIds.reduce((sum, tid) => {
+      const item = this.tmpVideos.get(tid);
+      return sum + (item?.size || 0);
+    }, 0);
+    await this.assertIssueDiskSpace(totalVideoBytes);
     for (const tempId of videoTempIds) {
       const item = this.tmpVideos.get(tempId);
       if (!item) {
@@ -313,6 +438,7 @@ export class IssueService {
       const filename = `${uuidv4()}${ext}`;
       const filepath = path.join(this.VIDEO_DIR, filename);
       await fs.promises.writeFile(filepath, item.buffer);
+      this.bumpIssueFilesTotalBytes(item.size);
       videoUrls.push(`${this.VIDEO_BASE_URL}/${filename}`);
 
       this.tmpVideos.delete(tempId);
@@ -422,7 +548,8 @@ export class IssueService {
       if (!filename) continue;
       const filepath = path.join(this.IMAGE_DIR, filename);
       if (fs.existsSync(filepath)) {
-        await fs.promises.unlink(filepath).catch(() => undefined);
+        const st = await fs.promises.stat(filepath).catch(() => undefined);
+        await fs.promises.unlink(filepath).then(() => this.bumpIssueFilesTotalBytes(-(st?.size || 0))).catch(() => undefined);
       }
     }
     for (const url of videoUrls) {
@@ -430,7 +557,8 @@ export class IssueService {
       if (!filename) continue;
       const filepath = path.join(this.VIDEO_DIR, filename);
       if (fs.existsSync(filepath)) {
-        await fs.promises.unlink(filepath).catch(() => undefined);
+        const st = await fs.promises.stat(filepath).catch(() => undefined);
+        await fs.promises.unlink(filepath).then(() => this.bumpIssueFilesTotalBytes(-(st?.size || 0))).catch(() => undefined);
       }
     }
 
@@ -477,10 +605,21 @@ export class IssueService {
       for (const fp of batch.filepaths) {
         if (!fp) continue;
         if (fs.existsSync(fp)) {
-          await fs.promises.unlink(fp).catch(() => undefined);
+          const st = await fs.promises.stat(fp).catch(() => undefined);
+          await fs.promises.unlink(fp).then(() => this.bumpIssueFilesTotalBytes(-(st?.size || 0))).catch(() => undefined);
         }
       }
       this.tmpImageBatches.delete(id);
     }
+  }
+
+  @Cron('0 3 * * *')
+  /** 每日清理过期的已落盘文件（超过30天） */
+  async cleanupOldIssueFiles() {
+    await this.getIssueFilesTotalBytes();
+    await Promise.all([
+      this.cleanupExpiredFilesInDir(this.IMAGE_DIR, this.ISSUE_FILES_RETENTION_MS),
+      this.cleanupExpiredFilesInDir(this.VIDEO_DIR, this.ISSUE_FILES_RETENTION_MS),
+    ]);
   }
 }
