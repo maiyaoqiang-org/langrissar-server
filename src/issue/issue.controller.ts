@@ -1,14 +1,16 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Res, UploadedFiles, UseInterceptors } from '@nestjs/common';
-import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Get, Headers, NotFoundException, Param, Post, Res, UploadedFile, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { ApiBody, ApiConsumes, ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { Public } from '../auth/public.decorator';
 import { IssueService } from './issue.service';
 import { CreateIssueFeedbackDto } from './dto/create-issue-feedback.dto';
+import { VerifyCaptchaDto } from './dto/verify-captcha.dto';
+import { SubmitV2IssueFeedbackDto } from './dto/submit-v2-issue-feedback.dto';
 
 @ApiTags('问题反馈')
 @Controller('issue')
@@ -114,21 +116,63 @@ export class IssueController {
   }
 
   @Public()
-  @Get('files/videos/:filename')
-  @ApiOperation({ summary: '获取问题反馈视频文件' })
-  /** 访问视频文件 */
-  async getVideo(@Param('filename') filename: string, @Res() res: Response) {
-    const safeName = path.basename(filename);
-    const filepath = this.issueService.getVideoPath(safeName);
+  @Post('verify-captcha')
+  @ApiOperation({ summary: '校验验证码，获取 uploadToken（V2 流程第一步）' })
+  /** 校验验证码，返回 uploadToken */
+  verifyCaptcha(@Body() dto: VerifyCaptchaDto) {
+    return this.issueService.verifyCaptchaAndGetToken(dto);
+  }
 
-    if (!fs.existsSync(filepath)) {
-      throw new NotFoundException('文件不存在');
-    }
+  @Public()
+  @Post('upload-file')
+  @ApiOperation({ summary: '上传单个文件（V2 流程第二步），需要 x-upload-token Header' })
+  @ApiHeader({ name: 'x-upload-token', description: 'verify-captcha 返回的 uploadToken', required: true })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 200 * 1024 * 1024 },
+      storage: diskStorage({
+        destination: (req, file, cb) => {
+          const tmpDir = path.join(process.cwd(), 'tmp-issue-upload');
+          try {
+            fs.mkdirSync(tmpDir, { recursive: true });
+            cb(null, tmpDir);
+          } catch (e) {
+            cb(e as any, tmpDir);
+          }
+        },
+        filename: (req, file, cb) => {
+          const ext = path.extname(file.originalname || '').slice(0, 20);
+          cb(null, `${uuidv4()}${ext || ''}`);
+        },
+      }),
+    }),
+  )
+  /** 接收单个文件，立即返回 pendingFileId，异步上传飞书 */
+  uploadFile(
+    @Headers('x-upload-token') uploadToken: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.issueService.uploadFile(uploadToken, file);
+  }
 
-    const ext = path.extname(safeName).toLowerCase();
-    const contentType = ext === '.webm' ? 'video/webm' : ext === '.mov' ? 'video/quicktime' : 'video/mp4';
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    fs.createReadStream(filepath).pipe(res);
+  @Public()
+  @Post('submit-v2')
+  @ApiOperation({ summary: '提交问题反馈 V2（需要 x-upload-token Header，无文件）' })
+  @ApiHeader({ name: 'x-upload-token', description: 'verify-captcha 返回的 uploadToken', required: true })
+  /** 新版提交：验证 token，检查文件状态，落库 */
+  submitV2(
+    @Headers('x-upload-token') uploadToken: string,
+    @Body() dto: SubmitV2IssueFeedbackDto,
+  ) {
+    return this.issueService.submitV2(uploadToken, dto);
   }
 }
