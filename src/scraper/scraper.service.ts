@@ -34,7 +34,8 @@ export class ScraperService {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-gpu'
+        '--disable-gpu',
+        '--single-process',
       ],
       ...(isWindows 
         ? { channel: 'chrome' as const } 

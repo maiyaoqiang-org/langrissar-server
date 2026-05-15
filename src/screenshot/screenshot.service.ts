@@ -94,6 +94,7 @@ export class ScreenshotService {
           '--disable-gpu',
           '--font-render-hinting=none',
           '--lang=zh-CN',
+          '--single-process',
         ],
         ...(isWindows
           ? { channel: 'chrome' as const }
