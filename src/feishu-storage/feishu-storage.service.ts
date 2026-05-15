@@ -40,7 +40,7 @@ export class FeishuStorageService {
     return this.client;
   }
 
-  private buildCandidateFileName(input: UploadLocalFileInput): string {
+  private buildCandidateFileName(input: { originalName?: string; mimeType?: string; size?: number }): string {
     const ext = path.extname(input.originalName || '');
     const safeExt = ext && ext.length <= 20 ? ext : '';
     const rawName = path.basename(input.originalName || '').replace(/\s+/g, ' ').trim();
@@ -73,7 +73,7 @@ export class FeishuStorageService {
     }
   }
 
-  private async resolvePublicUrl(fileToken: string): Promise<string> {
+  async resolvePublicUrl(fileToken: string): Promise<string> {
     const configuredPrefix = this.configService.get<string>('MOYUAN_FEISHU_FILE_URL_PREFIX');
     if (configuredPrefix) {
       const prefix = configuredPrefix.endsWith('/') ? configuredPrefix : `${configuredPrefix}/`;
@@ -179,5 +179,54 @@ export class FeishuStorageService {
       fileToken,
       url,
     };
+  }
+
+  /** 上传 Buffer 到飞书（不落磁盘，适用于小文件 ≤20MB） */
+  async uploadBuffer(input: { buffer: Buffer; originalName?: string; mimeType?: string }) {
+    const parentNode = this.mustGetEnv('MOYUAN_FEISHU_STORAGE_PARENT_NODE');
+    const size = input.buffer.length;
+    const fileName = this.buildCandidateFileName({ originalName: input.originalName, mimeType: input.mimeType, size });
+
+    const client = this.getClient();
+    const resp = await client.drive.file.uploadAll({
+      data: {
+        file_name: fileName,
+        parent_type: 'explorer',
+        parent_node: parentNode,
+        size,
+        file: input.buffer as any,
+      },
+    });
+
+    const fileToken = resp?.file_token;
+    if (!fileToken) {
+      throw new BadRequestException('飞书上传失败：未返回 file_token');
+    }
+
+    await this.updatePublicPermissions(fileToken);
+    const url = await this.resolvePublicUrl(fileToken);
+
+    return { fileToken, url };
+  }
+
+  /** 上传大文件到飞书（分块上传，完成后删除临时文件） */
+  async uploadLargeFileFromPath(input: UploadLocalFileInput) {
+    if (!input.filepath || !fs.existsSync(input.filepath)) {
+      throw new BadRequestException('文件不存在');
+    }
+
+    const parentNode = this.mustGetEnv('MOYUAN_FEISHU_STORAGE_PARENT_NODE');
+    const stat = fs.statSync(input.filepath);
+    const size = input.size ?? stat.size;
+    const fileName = this.buildCandidateFileName(input);
+
+    try {
+      const fileToken = await this.uploadMultipartFile({ fileName, parentNode, size, filepath: input.filepath });
+      await this.updatePublicPermissions(fileToken);
+      const url = await this.resolvePublicUrl(fileToken);
+      return { fileToken, url };
+    } finally {
+      try { fs.unlinkSync(input.filepath); } catch {}
+    }
   }
 }

@@ -139,24 +139,9 @@ export class IssueController {
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 200 * 1024 * 1024 },
-      storage: diskStorage({
-        destination: (req, file, cb) => {
-          const tmpDir = path.join(process.cwd(), 'tmp-issue-upload');
-          try {
-            fs.mkdirSync(tmpDir, { recursive: true });
-            cb(null, tmpDir);
-          } catch (e) {
-            cb(e as any, tmpDir);
-          }
-        },
-        filename: (req, file, cb) => {
-          const ext = path.extname(file.originalname || '').slice(0, 20);
-          cb(null, `${uuidv4()}${ext || ''}`);
-        },
-      }),
     }),
   )
-  /** 接收单个文件，立即返回 pendingFileId，异步上传飞书 */
+  /** 接收单个文件，同步上传飞书，返回 fileToken 和 url */
   uploadFile(
     @Headers('x-upload-token') uploadToken: string,
     @UploadedFile() file: Express.Multer.File,

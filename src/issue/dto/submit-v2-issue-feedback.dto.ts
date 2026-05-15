@@ -14,9 +14,9 @@ export class SubmitV2IssueFeedbackDto {
   @MaxLength(500)
   question: string;
 
-  @ApiProperty({ description: '已上传文件的 pendingFileId 列表', type: [String], required: false })
+  @ApiProperty({ description: '已上传文件的 fileToken 列表（格式: "fileToken:mimeType"）', type: [String], required: false })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  pendingFileIds?: string[];
+  fileTokens?: string[];
 }

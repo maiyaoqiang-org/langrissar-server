@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
@@ -32,20 +32,6 @@ export class IssueService {
   private readonly MAX_IMAGE_BYTES = 10 * 1024 * 1024;
   private readonly MAX_VIDEO_BYTES = 200 * 1024 * 1024;
 
-  /** pendingUploads: 存储异步上传状态 */
-  private readonly pendingUploads = new Map<
-    string,
-    {
-      status: 'uploading' | 'done' | 'error';
-      url?: string;
-      error?: string;
-      promise: Promise<void>;
-      createdAt: number;
-      mimeType: string;
-    }
-  >();
-
-  /** 初始化：创建存储目录，启动定时清理 */
   constructor(
     @InjectRepository(IssueFeedback)
     private issueFeedbackRepository: Repository<IssueFeedback>,
@@ -55,16 +41,6 @@ export class IssueService {
     private jwtService: JwtService,
   ) {
     this.ensureDirs();
-    // 每 5 分钟清理超过 30 分钟的 pendingUploads 条目
-    setInterval(() => {
-      const expireMs = 30 * 60 * 1000;
-      const now = Date.now();
-      for (const [id, entry] of this.pendingUploads.entries()) {
-        if (now - entry.createdAt > expireMs) {
-          this.pendingUploads.delete(id);
-        }
-      }
-    }, 5 * 60 * 1000);
   }
 
   /** 确保上传目录存在 */
@@ -348,8 +324,8 @@ export class IssueService {
     }
   }
 
-  /** 接收单个文件，立即返回 pendingFileId，异步上传飞书 */
-  uploadFile(uploadToken: string, file: Express.Multer.File): { pendingFileId: string; status: string } {
+  /** 接收单个文件，同步上传飞书，返回 fileToken 和 url */
+  async uploadFile(uploadToken: string, file: Express.Multer.File): Promise<{ fileToken: string; url: string; mimeType: string }> {
     this.verifyUploadToken(uploadToken);
 
     if (!file) {
@@ -361,98 +337,68 @@ export class IssueService {
     const isVid = mime.startsWith('video/');
 
     if (!isImg && !isVid) {
-      this.cleanTmpFile(file.path);
       throw new BadRequestException('仅支持图片或视频文件');
     }
     if (isImg && file.size > this.MAX_IMAGE_BYTES) {
-      this.cleanTmpFile(file.path);
       throw new BadRequestException('图片大小不能超过 10MB');
     }
     if (isVid && file.size > this.MAX_VIDEO_BYTES) {
-      this.cleanTmpFile(file.path);
       throw new BadRequestException('视频大小不能超过 200MB');
     }
 
-    const pendingFileId = uuidv4();
+    // 小文件（≤20MB）：直接用 Buffer 上传（memoryStorage）
+    // 大文件（>20MB）：先写磁盘，分块上传后删除临时文件
+    const smallLimit = 20 * 1024 * 1024;
+    let result: { fileToken: string; url: string };
 
-    const promise = this.feishuStorageService
-      .uploadLocalFile({
-        filepath: file.path,
+    if (file.size <= smallLimit && file.buffer) {
+      result = await this.feishuStorageService.uploadBuffer({
+        buffer: file.buffer,
         originalName: file.originalname,
-        mimeType: file.mimetype,
-        size: file.size,
-      })
-      .then((result) => {
-        const entry = this.pendingUploads.get(pendingFileId);
-        if (entry) {
-          entry.status = 'done';
-          entry.url = result.url;
-        }
-      })
-      .catch((err: any) => {
-        const entry = this.pendingUploads.get(pendingFileId);
-        if (entry) {
-          entry.status = 'error';
-          entry.error = err?.message || '飞书上传失败';
-        }
-      })
-      .finally(() => {
-        this.cleanTmpFile(file.path);
+        mimeType: mime,
       });
+    } else {
+      // 大文件：写临时文件 → 分块上传 → 删除临时文件
+      const tmpDir = path.join(process.cwd(), 'tmp-issue-upload');
+      if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir, { recursive: true });
+      }
+      const ext = path.extname(file.originalname || '').slice(0, 20);
+      const tmpPath = path.join(tmpDir, `${uuidv4()}${ext || ''}`);
+      fs.writeFileSync(tmpPath, file.buffer);
 
-    this.pendingUploads.set(pendingFileId, {
-      status: 'uploading',
-      promise,
-      createdAt: Date.now(),
-      mimeType: mime,
-    });
+      result = await this.feishuStorageService.uploadLargeFileFromPath({
+        filepath: tmpPath,
+        originalName: file.originalname,
+        mimeType: mime,
+        size: file.size,
+      });
+    }
 
-    return { pendingFileId, status: 'uploading' };
+    return { fileToken: result.fileToken, url: result.url, mimeType: mime };
   }
 
-  /** 新版提交：验证 token，检查文件状态（限流），落库 */
+  /** 新版提交：验证 token，设置公开权限，落库 */
   async submitV2(uploadToken: string, dto: SubmitV2IssueFeedbackDto): Promise<{ id: string }> {
     this.verifyUploadToken(uploadToken);
 
-    const ids = Array.isArray(dto.pendingFileIds) ? dto.pendingFileIds : [];
+    const fileTokens = Array.isArray(dto.fileTokens) ? dto.fileTokens : [];
 
-    if (ids.length > 0) {
-      // 限流：若有文件仍在处理中，拒绝提交
-      const stillUploading = ids.filter((id) => {
-        const entry = this.pendingUploads.get(id);
-        return entry?.status === 'uploading';
-      });
-      if (stillUploading.length > 0) {
-        throw new ConflictException('文件仍在处理中，请稍后再试');
-      }
-
-      // 检查是否有上传失败的文件
-      const failed = ids.filter((id) => {
-        const entry = this.pendingUploads.get(id);
-        return !entry || entry.status === 'error';
-      });
-      if (failed.length > 0) {
-        const notFound = failed.filter((id) => !this.pendingUploads.has(id));
-        if (notFound.length > 0) {
-          throw new BadRequestException('文件信息已失效，请重新上传');
-        }
-        throw new BadRequestException('部分文件上传失败，请重新上传');
-      }
-    }
-
+    // 对每个 fileToken 设置公开权限并解析 URL
     const imageUrls: string[] = [];
     const videoUrls: string[] = [];
 
-    for (const id of ids) {
-      const entry = this.pendingUploads.get(id);
-      if (entry?.url) {
-        if (entry.mimeType.startsWith('image/')) {
-          imageUrls.push(entry.url);
-        } else {
-          videoUrls.push(entry.url);
-        }
+    // fileTokens 格式: "fileToken:mimeType"（前端在上传时拼接）
+    for (const entry of fileTokens) {
+      const [fileToken, mimeType] = entry.split(':');
+      if (!fileToken) continue;
+
+      const url = await this.feishuStorageService.resolvePublicUrl(fileToken);
+      if (mimeType?.startsWith('image/')) {
+        imageUrls.push(url);
+      } else {
+        videoUrls.push(url);
       }
-      this.pendingUploads.delete(id);
     }
 
     const entity = this.issueFeedbackRepository.create({
@@ -477,13 +423,6 @@ export class IssueService {
     });
 
     return { id: entity.id };
-  }
-
-  /** 清理临时文件 */
-  private cleanTmpFile(filePath?: string) {
-    if (filePath && fs.existsSync(filePath)) {
-      try { fs.unlinkSync(filePath); } catch {}
-    }
   }
 
 }
