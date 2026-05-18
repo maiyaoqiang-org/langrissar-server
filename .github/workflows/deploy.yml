@@ -76,7 +76,7 @@ jobs:
             docker rm langrissar-server-$NEW_COLOR || true
             
             # 启动新容器，监听新的端口
-            docker run -d -p $NEW_PORT:3000 \
+            docker run -d --init -p $NEW_PORT:3000 \
               --restart unless-stopped \
               -e DB_HOST=172.17.0.1 \
               -e DB_PORT=3306 \

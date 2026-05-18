@@ -36,6 +36,9 @@ export class ScraperService {
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--single-process',
+        '--disable-breakpad',
+        '--no-crash-upload',
+        '--disable-crash-reporter',
       ],
       ...(isWindows 
         ? { channel: 'chrome' as const } 

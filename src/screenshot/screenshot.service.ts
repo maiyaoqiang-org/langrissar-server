@@ -95,6 +95,9 @@ export class ScreenshotService {
           '--font-render-hinting=none',
           '--lang=zh-CN',
           '--single-process',
+          '--disable-breakpad',
+          '--no-crash-upload',
+          '--disable-crash-reporter',
         ],
         ...(isWindows
           ? { channel: 'chrome' as const }
