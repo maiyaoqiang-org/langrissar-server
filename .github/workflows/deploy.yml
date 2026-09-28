@@ -4,30 +4,36 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to Aliyun ACR
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
-      - name: Clean up old images
-        run: |
-          docker images --format "{{.Repository}}:{{.Tag}}" | grep "crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server" | xargs -r docker rmi
 
+      # 使用 GHA 缓存复用基础层（chromium/npm 依赖等大层），每次仅推送代码变更的小层
       - name: Build and Push
-        run: |
-          docker buildx build --no-cache --push --platform linux/amd64 --progress plain --tag crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest .
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: SSH Deploy
         uses: appleboy/ssh-action@master
@@ -40,20 +46,17 @@ jobs:
             mkdir -p /data/langrissar/logs /data/langrissar/screenshots /data/langrissar/issue_uploads
             chmod 777 /data/langrissar/logs /data/langrissar/screenshots /data/langrissar/issue_uploads
 
-            # 清理未使用的同名镜像
-            docker images --format "{{.Repository}}:{{.Tag}}" | grep "crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server" | xargs -r docker rmi
-            
             # 拉取最新镜像
             docker pull crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest
-            
-           
+
+
             # 确定当前运行的容器和端口，以及新容器的端口
             BLUE_PORT=6088
             GREEN_PORT=6089
             CURRENT_COLOR=""
             NEW_COLOR=""
             NEW_PORT=0
-            
+
             # 检查哪个端口正在被Nginx使用 (这部分逻辑需要根据您的Nginx配置来确定)
             # 简单示例：假设我们通过检查哪个容器在运行来判断
             if docker ps -q -f name=langrissar-server-blue | grep -q .; then
@@ -67,14 +70,14 @@ jobs:
               NEW_PORT=$BLUE_PORT
               CURRENT_PORT=$GREEN_PORT
             fi
-            
+
             echo "当前活动的颜色: $CURRENT_COLOR (端口: $CURRENT_PORT)"
             echo "将部署新的颜色: $NEW_COLOR (端口: $NEW_PORT)"
-            
+
             # 停止并移除可能存在的旧的NEW_COLOR容器
             docker stop langrissar-server-$NEW_COLOR || true
             docker rm langrissar-server-$NEW_COLOR || true
-            
+
             # 启动新容器，监听新的端口
             docker run -d --init -p $NEW_PORT:3000 \
               --restart unless-stopped \
@@ -98,21 +101,21 @@ jobs:
               -v /data/langrissar/issue_uploads:/app/issue_uploads \
               --name langrissar-server-$NEW_COLOR \
               crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest
-            
+
             # 等待新容器启动并健康检查
             echo "等待新容器 langrissar-server-$NEW_COLOR (端口 $NEW_PORT) 启动并进行健康检查..."
             HEALTH_CHECK_URL="http://127.0.0.1:$NEW_PORT/"
             MAX_ATTEMPTS=20 # 最多尝试20次
             RETRY_INTERVAL=10 # 每次尝试间隔10秒
             ATTEMPT_NUM=0
-            
+
             until [ $ATTEMPT_NUM -ge $MAX_ATTEMPTS ]
             do
               ATTEMPT_NUM=$((ATTEMPT_NUM+1))
               echo "健康检查尝试 #${ATTEMPT_NUM}: 正在请求 $HEALTH_CHECK_URL"
               # 使用 curl 进行健康检查，只关心HTTP状态码，设置连接超时和最大请求时间
               HTTP_STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" --connect-timeout 5 --max-time 5 $HEALTH_CHECK_URL)
-              
+
               if [ "$HTTP_STATUS" -eq 200 ]; then
                 echo "健康检查成功，新容器已就绪 (HTTP状态码: $HTTP_STATUS)。"
                 break
@@ -126,20 +129,20 @@ jobs:
                 fi
               fi
             done
-            
+
             # 检查新容器是否最终被认为是正常运行 (基于健康检查结果)
             # 我们需要确保HTTP_STATUS是200，并且docker ps也能找到容器
             if [ "$HTTP_STATUS" -eq 200 ] && docker ps -q -f name=langrissar-server-$NEW_COLOR | grep -q .; then
               echo "新容器 langrissar-server-$NEW_COLOR 已成功启动并通过健康检查。"
-              
+
               # 修改Nginx配置指向新容器的端口
               echo "更新Nginx upstream配置 langrissar_backend 指向端口 $NEW_PORT..."
               sudo sed -i "s/server 127.0.0.1:[0-9]\{4\};/server 127.0.0.1:$NEW_PORT;/g" /etc/nginx/conf.d/langrissar-upstream.conf
-              
+
               # 重新加载Nginx配置
               echo "重新加载Nginx配置..."
               NGINX_RELOAD_SUCCESS=false
-              
+
               # 检查nginx是否正在运行
               if sudo systemctl is-active --quiet nginx; then
                   # 如果nginx正在运行，使用reload命令
@@ -162,49 +165,49 @@ jobs:
                       echo "nginx启动失败"
                   fi
               fi
-              
+
               # 检查nginx操作是否成功
               if [ "$NGINX_RELOAD_SUCCESS" = true ]; then
                 echo "流量已切换到 langrissar-server-$NEW_COLOR"
-                
+
                 # 停止旧容器
                 echo "停止旧容器 langrissar-server-$CURRENT_COLOR..."
                 docker stop langrissar-server-$CURRENT_COLOR || true
-                
+
                 # 发送部署成功飞书通知
                 FEISHU_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/ee497ee5-5649-4408-8aa3-e8a21d502c5b"
                 MESSAGE="✅ 部署成功: langrissar-server 已更新到 $NEW_COLOR 版本 (端口 $NEW_PORT)。"
                 curl -X POST -H "Content-Type: application/json" -d '{"msg_type":"text","content":{"text":"'"$MESSAGE"'"}}' $FEISHU_WEBHOOK_URL
-                
+
                 echo "部署完成，当前活动容器: langrissar-server-$NEW_COLOR"
               else
                 echo "nginx配置重新加载失败，回滚nginx配置并保持原容器运行"
-                
+
                 # 回滚nginx配置到原来的端口
                 echo "回滚Nginx upstream配置到端口 $CURRENT_PORT..."
                 sudo sed -i "s/server 127.0.0.1:[0-9]\{4\};/server 127.0.0.1:$CURRENT_PORT;/g" /etc/nginx/conf.d/langrissar-upstream.conf
-                
+
                 # 尝试重新加载原始配置
                 if sudo systemctl is-active --quiet nginx; then
                     sudo nginx -s reload || sudo systemctl restart nginx
                 else
                     sudo systemctl start nginx
                 fi
-                
+
                 # 停止新容器（因为部署失败）
                 echo "停止新容器 langrissar-server-$NEW_COLOR..."
                 docker stop langrissar-server-$NEW_COLOR || true
-                
+
                 # 发送部署失败飞书通知
                 FEISHU_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/ee497ee5-5649-4408-8aa3-e8a21d502c5b"
                 MESSAGE="❌ 部署失败: nginx配置重新加载失败，已回滚到原容器 $CURRENT_COLOR (端口 $CURRENT_PORT)。"
                 curl -X POST -H "Content-Type: application/json" -d '{"msg_type":"text","content":{"text":"'"$MESSAGE"'"}}' $FEISHU_WEBHOOK_URL
-                
+
                 exit 1
               fi
             else
               echo "新容器 langrissar-server-$NEW_COLOR 启动失败或未通过健康检查 (最后状态码: $HTTP_STATUS)。保持旧容器 langrissar-server-$CURRENT_COLOR 运行。"
-              
+
               # 发送部署失败飞书通知
               FEISHU_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/ee497ee5-5649-4408-8aa3-e8a21d502c5b"
               MESSAGE="❌ 部署失败: langrissar-server $NEW_COLOR 版本启动失败或健康检查未通过 (最后状态码: $HTTP_STATUS)。旧容器 $CURRENT_COLOR 保持运行。"

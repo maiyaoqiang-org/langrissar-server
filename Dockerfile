@@ -36,11 +36,10 @@ COPY package*.json ./
 RUN npm install
 
 # Copy source code
-COPY . .
+COPY --chown=node:node . .
 
-# 确保所有文件的权限
-RUN chown -R node:node /app && \
-    chmod -R 755 /app/logs
+# 仅调整工作目录归属（避免 chown -R 产生全量大层）
+RUN chown node:node /app
 
 # 切换到非 root 用户
 USER node
