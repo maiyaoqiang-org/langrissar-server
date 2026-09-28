@@ -3,7 +3,6 @@ import { Cron } from '@nestjs/schedule';
 import * as puppeteer from 'puppeteer-core';
 import { LaunchOptions } from 'puppeteer-core';
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
@@ -25,8 +24,6 @@ export class ScreenshotService {
   private lastRequestTime: number = 0;
   private readonly COOLDOWN_MS = 3000;
   private readonly SCREENSHOT_DIR = path.join(process.cwd(), 'screenshots');
-  /** 拼接临时目录：容器内 /tmp 已挂内存盘（部署时通过 --tmpfs 指定），临时文件不占用云盘 I/O */
-  private readonly TEMP_DIR = path.join(os.tmpdir(), 'screenshot-tmp');
   private readonly MAX_AGE_DAYS = 30;
   private readonly BASE_URL = `${SERVER_BASE_URL}/screenshot/files`;
 
@@ -42,15 +39,11 @@ export class ScreenshotService {
     this.ensureDir();
   }
 
-  /** 确保截图目录与拼接临时目录存在 */
+  /** 确保截图目录存在 */
   private ensureDir() {
     if (!fs.existsSync(this.SCREENSHOT_DIR)) {
       fs.mkdirSync(this.SCREENSHOT_DIR, { recursive: true });
       this.logger.log(`截图目录已创建: ${this.SCREENSHOT_DIR}`);
-    }
-    if (!fs.existsSync(this.TEMP_DIR)) {
-      fs.mkdirSync(this.TEMP_DIR, { recursive: true });
-      this.logger.log(`拼接临时目录已创建: ${this.TEMP_DIR}`);
     }
   }
 
@@ -145,9 +138,6 @@ export class ScreenshotService {
         '--disable-breakpad',
         '--no-crash-upload',
         '--disable-crash-reporter',
-        // 每轮都是全新浏览器，磁盘缓存没有复用价值，关掉避免白写云盘；同时限制 V8 堆，减少被换出到 swap 的内存
-        '--disk-cache-size=1',
-        '--js-flags=--max-old-space-size=384',
       ],
       ...(isWindows
         ? { channel: 'chrome' as const }
@@ -345,7 +335,7 @@ export class ScreenshotService {
     this.logger.log(`分段截图完成，共 ${segments.length} 段，最终scrollH=${finalScrollHeight}，开始拼接...`);
 
     if (segments.length === 1) {
-      const segPath = path.join(this.TEMP_DIR, `_seg_0_final.png`);
+      const segPath = path.join(this.SCREENSHOT_DIR, `_seg_0_final.png`);
       fs.writeFileSync(segPath, segments[0].buffer);
       return segments[0].buffer;
     }
@@ -353,7 +343,7 @@ export class ScreenshotService {
     /** 保存原始段文件 */
     const tempFiles: string[] = [];
     for (let i = 0; i < segments.length; i++) {
-      const segPath = path.join(this.TEMP_DIR, `_seg_${i}_${Date.now()}.png`);
+      const segPath = path.join(this.SCREENSHOT_DIR, `_seg_${i}_${Date.now()}.png`);
       fs.writeFileSync(segPath, segments[i].buffer);
       tempFiles.push(segPath);
       this.logger.log(`临时段文件: ${segPath} (${(segments[i].buffer.length / 1024).toFixed(1)}KB), scrollY=${segments[i].scrollY}`);
@@ -364,7 +354,7 @@ export class ScreenshotService {
 
     for (let i = 0; i < tempFiles.length; i++) {
       const seg = segments[i];
-      const croppedPath = path.join(this.TEMP_DIR, `_seg_${i}_cropped_${Date.now()}.png`);
+      const croppedPath = path.join(this.SCREENSHOT_DIR, `_seg_${i}_cropped_${Date.now()}.png`);
       const meta = await sharp(tempFiles[i]).metadata();
       const imageWidth = meta.width || Math.round((viewport?.width || 1920) * dpr);
       const imageHeight = meta.height || Math.round(viewportHeight * dpr);
