@@ -25,6 +25,7 @@ jobs:
           password: ${{ secrets.ACR_PASSWORD }}
 
       # 使用 GHA 缓存复用基础层（chromium/npm 依赖等大层），每次仅推送代码变更的小层
+      # provenance/sbom 必须关闭：其 OCI empty manifest 阿里云 ACR 不支持，会导致推送被拒
       - name: Build and Push
         uses: docker/build-push-action@v5
         with:
@@ -34,6 +35,8 @@ jobs:
           tags: crpi-98ymlx0yqe646pye.cn-guangzhou.personal.cr.aliyuncs.com/myq-space/langrissar-server:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
 
       - name: SSH Deploy
         uses: appleboy/ssh-action@master
