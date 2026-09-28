@@ -82,7 +82,9 @@ jobs:
             docker rm langrissar-server-$NEW_COLOR || true
 
             # 启动新容器，监听新的端口
-            docker run -d --init -p $NEW_PORT:3000 \
+            # --cpus 限制容器最多用 1.5 核：截图时 Chromium 会吃满 CPU，需给宿主机留出余量，
+            # 否则 1Panel/SSH/MySQL 会被饿死（表现为面板请求超时）
+            docker run -d --init --cpus=1.5 -p $NEW_PORT:3000 \
               --restart unless-stopped \
               -e DB_HOST=172.17.0.1 \
               -e DB_PORT=3306 \

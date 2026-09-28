@@ -7,7 +7,7 @@ export class ScreenshotDto {
   @IsNotEmpty()
   url: string;
 
-  @ApiProperty({ description: '图片格式', enum: ['png', 'jpeg'], default: 'png', required: false })
+  @ApiProperty({ description: '图片格式', enum: ['png', 'jpeg'], default: 'jpeg', required: false })
   @IsOptional()
   @IsEnum(['png', 'jpeg'])
   format?: 'png' | 'jpeg';
@@ -32,6 +32,13 @@ export class ScreenshotDto {
   @Min(400)
   @Max(2160)
   height?: number;
+
+  @ApiProperty({ description: '像素密度（越大越清晰但CPU/内存开销成倍增长），1-3', default: 1.5, required: false })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(3)
+  deviceScaleFactor?: number;
 
   @ApiProperty({ description: '是否截取完整页面（滚动截屏）', default: true, required: false })
   @IsOptional()

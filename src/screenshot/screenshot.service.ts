@@ -59,7 +59,7 @@ export class ScreenshotService {
     this.taskLock.acquire('截图');
     this.lastRequestTime = now;
 
-    const format = dto.format || 'png';
+    const format = dto.format || 'jpeg';
     const filename = `${uuidv4()}.${format}`;
     const filepath = path.join(this.SCREENSHOT_DIR, filename);
     const fileUrl = `${this.BASE_URL}/${filename}`;
@@ -164,7 +164,8 @@ export class ScreenshotService {
       await page.setViewport({
         width,
         height,
-        deviceScaleFactor: 2,
+        // 像素密度直接决定光栅化与编码开销（面积按平方增长），小内存机器默认 1.5
+        deviceScaleFactor: dto.deviceScaleFactor || 1.5,
         isMobile: isMobileWidth,
         hasTouch: isMobileWidth,
       });
@@ -186,7 +187,7 @@ export class ScreenshotService {
         await this.delay(waitMs);
       }
 
-      const format = dto.format || 'png';
+      const format = dto.format || 'jpeg';
       const fullPage = dto.fullPage !== undefined ? dto.fullPage : true;
 
       if (fullPage) {
@@ -436,6 +437,11 @@ export class ScreenshotService {
         }
       }
       this.logger.log(`清理完成，共删除 ${allTempFiles.length} 个临时文件`);
+    }
+
+    // 拼接过程用 PNG 无损中间图（避免多次合成产生累积损失），最终一次转成目标格式
+    if (format === 'jpeg') {
+      return await sharp(resultBuffer).jpeg({ quality: quality || 80 }).toBuffer();
     }
 
     return resultBuffer;

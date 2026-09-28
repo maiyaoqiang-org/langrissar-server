@@ -24,22 +24,25 @@ export class ScreenshotController {
   @Get()
   @ApiOperation({ summary: '提交网页截图任务（结果发送到飞书）' })
   @ApiQuery({ name: 'url', description: '目标网页URL', required: true })
-  @ApiQuery({ name: 'format', description: '图片格式 png/jpeg', required: false })
+  @ApiQuery({ name: 'format', description: '图片格式 png/jpeg（默认jpeg，编码更快、体积更小）', required: false })
   @ApiQuery({ name: 'width', description: '视口宽度', required: false })
   @ApiQuery({ name: 'height', description: '视口高度', required: false })
+  @ApiQuery({ name: 'deviceScaleFactor', description: '像素密度 1-3（默认1.5）', required: false })
   @ApiQuery({ name: 'fullPage', description: '是否截取完整页面', required: false })
   async screenshotGet(
     @Query('url') url: string,
     @Query('format') format: 'png' | 'jpeg',
     @Query('width') width: string,
     @Query('height') height: string,
+    @Query('deviceScaleFactor') deviceScaleFactor: string,
     @Query('fullPage') fullPage: string,
   ) {
     const dto = new ScreenshotDto();
     dto.url = url;
-    dto.format = format || 'png';
+    dto.format = format || 'jpeg';
     dto.width = width ? parseInt(width) : 414;
     dto.height = height ? parseInt(height) : 1080;
+    dto.deviceScaleFactor = deviceScaleFactor ? parseFloat(deviceScaleFactor) : undefined;
     dto.fullPage = fullPage === 'false' ? false : true;
 
     return this.screenshotService.submitScreenshot(dto);
