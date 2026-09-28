@@ -84,7 +84,10 @@ jobs:
             # 启动新容器，监听新的端口
             # --cpus 限制容器最多用 1.5 核：截图时 Chromium 会吃满 CPU，需给宿主机留出余量，
             # 否则 1Panel/SSH/MySQL 会被饿死（表现为面板请求超时）
+            # --tmpfs /tmp：Chromium 的共享内存缓冲与截图拼接临时文件改落在内存盘上，
+            # 否则它们会写到 overlay（云盘），把磁盘 I/O 打满导致全机卡死数分钟
             docker run -d --init --cpus=1.5 -p $NEW_PORT:3000 \
+              --tmpfs /tmp:size=256m,mode=1777 \
               --restart unless-stopped \
               -e DB_HOST=172.17.0.1 \
               -e DB_PORT=3306 \
