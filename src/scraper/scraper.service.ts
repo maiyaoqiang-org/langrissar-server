@@ -2,27 +2,25 @@ import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/com
 import * as puppeteer from 'puppeteer-core';
 import { ScraperDto } from './dto/scraper.dto';
 import { LaunchOptions } from 'puppeteer-core';
+import { BrowserTaskLockService } from '../common/browser-task-lock.module';
 
 @Injectable()
 export class ScraperService {
   private lastRequestTime: number = 0;
-  private isProcessing: boolean = false;
   private readonly COOLDOWN_MS = 5000; // 5秒冷却时间
 
-  async scrape(dto: ScraperDto) {
-    // 1. 并发控制：同时只能有一个爬虫任务
-    if (this.isProcessing) {
-      throw new ForbiddenException('服务器正在处理其他爬虫任务，请稍后再试');
-    }
+  constructor(private readonly taskLock: BrowserTaskLockService) {}
 
-    // 2. 频率控制：两次请求之间必须间隔一定时间
+  async scrape(dto: ScraperDto) {
+    // 1. 频率控制：两次请求之间必须间隔一定时间
     const now = Date.now();
     if (now - this.lastRequestTime < this.COOLDOWN_MS) {
       const waitTime = Math.ceil((this.COOLDOWN_MS - (now - this.lastRequestTime)) / 1000);
       throw new ForbiddenException(`请求过于频繁，请在 ${waitTime} 秒后再试`);
     }
 
-    this.isProcessing = true;
+    // 2. 并发控制：与截图等其他浏览器任务共用一把锁，拿不到就拒绝
+    this.taskLock.acquire('爬虫');
     this.lastRequestTime = now;
 
     let browser: puppeteer.Browser | null = null;
@@ -85,11 +83,23 @@ export class ScraperService {
   } catch (error) {
     throw new BadRequestException(`爬取失败: ${error.message}`);
   } finally {
-      this.isProcessing = false;
       if (browser) {
-        await browser.close().catch(e => 
-          console.error('浏览器关闭失败:', e));
+        const chromiumPid = browser.process()?.pid;
+        await Promise.race([
+          browser.close().catch(e => console.error('浏览器关闭失败:', e)),
+          new Promise(resolve => setTimeout(resolve, 5000)),
+        ]);
+        // close 超时或进程残留时强制终止，避免残留 Chromium 持续占用 CPU
+        if (chromiumPid) {
+          try {
+            process.kill(chromiumPid, 'SIGKILL');
+            console.warn(`浏览器未正常退出，已强制终止: pid=${chromiumPid}`);
+          } catch {
+            // 进程已正常退出，无需处理
+          }
+        }
       }
+      this.taskLock.release();
     }
 }
 }

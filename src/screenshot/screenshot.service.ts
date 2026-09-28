@@ -13,6 +13,7 @@ import {
   FEISHU_WEBHOOK_MOYUAN_SCREENSHOT_URL,
   SERVER_BASE_URL
 } from '../config/baseConfig';
+import { BrowserTaskLockService } from '../common/browser-task-lock.module';
 
 // 用法
 // https://maiyaoqiang.fun/api/screenshot?url=https://my.feishu.cn/docx/M3CndOaXQowS1ixfh7mc7IsZnJ2&width=414
@@ -20,7 +21,6 @@ import {
 @Injectable()
 export class ScreenshotService {
   private readonly logger = new Logger(ScreenshotService.name);
-  private isProcessing: boolean = false;
   private lastRequestTime: number = 0;
   private readonly COOLDOWN_MS = 3000;
   private readonly SCREENSHOT_DIR = path.join(process.cwd(), 'screenshots');
@@ -31,7 +31,11 @@ export class ScreenshotService {
   private readonly DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
   // private readonly KEEP_SEGMENT_FILES = process.env.NODE_ENV === 'development';
   private readonly KEEP_SEGMENT_FILES = false;
-  constructor() {
+  private readonly NAV_TIMEOUT_MS = 90000;
+  private readonly MAX_RETRY = 1;
+  private readonly RETRY_DELAY_MS = 3000;
+  private readonly CLOSE_TIMEOUT_MS = 5000;
+  constructor(private readonly taskLock: BrowserTaskLockService) {
     this.ensureDir();
   }
 
@@ -45,23 +49,20 @@ export class ScreenshotService {
 
   /** 提交截图任务，立即返回访问地址，异步执行截图并发送飞书通知 */
   async submitScreenshot(dto: ScreenshotDto) {
-    if (this.isProcessing) {
-      throw new ForbiddenException('服务器正在处理其他截图任务，请稍后再试');
-    }
-
     const now = Date.now();
     if (now - this.lastRequestTime < this.COOLDOWN_MS) {
       const waitTime = Math.ceil((this.COOLDOWN_MS - (now - this.lastRequestTime)) / 1000);
       throw new ForbiddenException(`请求过于频繁，请在 ${waitTime} 秒后再试`);
     }
 
+    // 与爬虫等其他浏览器任务共用一把锁，拿不到就拒绝，避免同时跑多个 Chromium
+    this.taskLock.acquire('截图');
+    this.lastRequestTime = now;
+
     const format = dto.format || 'png';
     const filename = `${uuidv4()}.${format}`;
     const filepath = path.join(this.SCREENSHOT_DIR, filename);
     const fileUrl = `${this.BASE_URL}/${filename}`;
-
-    this.isProcessing = true;
-    this.lastRequestTime = now;
 
     this.executeAndNotify(dto, filepath, filename, fileUrl).catch(err => {
       this.logger.error(`截图任务异步执行失败: ${err.message}`);
@@ -80,33 +81,81 @@ export class ScreenshotService {
     return path.join(this.SCREENSHOT_DIR, filename);
   }
 
-  /** 异步执行截图、保存文件并发送飞书通知 */
+  /** 异步执行截图（失败自动重试一次）、保存文件并发送飞书通知 */
   private async executeAndNotify(dto: ScreenshotDto, filepath: string, filename: string, fileUrl: string) {
-    let browser: puppeteer.Browser | null = null;
     try {
-      const isWindows = process.platform === 'win32';
-      const launchOptions: LaunchOptions = {
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--font-render-hinting=none',
-          '--lang=zh-CN',
-          '--single-process',
-          '--disable-breakpad',
-          '--no-crash-upload',
-          '--disable-crash-reporter',
-        ],
-        ...(isWindows
-          ? { channel: 'chrome' as const }
-          : { executablePath: '/usr/bin/chromium-browser' }
-        ),
-      };
+      let imageBuffer: Buffer | null = null;
+      let lastError: Error | null = null;
 
-      browser = await puppeteer.launch(launchOptions);
-      const page = await browser.newPage();
+      for (let attempt = 0; attempt <= this.MAX_RETRY; attempt++) {
+        try {
+          imageBuffer = await this.captureScreenshot(dto);
+          if (attempt > 0) {
+            this.logger.log(`截图重试成功: ${dto.url} (第 ${attempt + 1} 次)`);
+          }
+          break;
+        } catch (error) {
+          lastError = error;
+          this.logger.error(`截图失败(尝试 ${attempt + 1}/${this.MAX_RETRY + 1}): ${error.message}`);
+          if (attempt < this.MAX_RETRY) {
+            await this.delay(this.RETRY_DELAY_MS);
+          }
+        }
+      }
+
+      if (!imageBuffer) {
+        throw lastError || new Error('截图失败');
+      }
+
+      fs.writeFileSync(filepath, imageBuffer);
+      this.logger.log(`截图已保存: ${filepath} (${(imageBuffer.length / 1024).toFixed(1)}KB)`);
+
+      await this.sendFeishuText(
+        `网页截图完成\n目标: ${dto.url}\n查看地址: ${fileUrl}`
+      );
+    } catch (error) {
+      this.logger.error(`截图执行失败: ${error.message}`);
+      await this.sendFeishuText(`网页截图失败: ${dto.url}\n错误: ${error.message}`);
+    } finally {
+      // 浏览器已在 captureScreenshot 内部完成关闭（必要时强制终止），此处再释放共享锁
+      this.taskLock.release();
+    }
+  }
+
+  /** 启动 Chromium 浏览器实例 */
+  private async launchBrowser(): Promise<puppeteer.Browser> {
+    const isWindows = process.platform === 'win32';
+    const launchOptions: LaunchOptions = {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--font-render-hinting=none',
+        '--lang=zh-CN',
+        '--single-process',
+        '--disable-breakpad',
+        '--no-crash-upload',
+        '--disable-crash-reporter',
+      ],
+      ...(isWindows
+        ? { channel: 'chrome' as const }
+        : { executablePath: '/usr/bin/chromium-browser' }
+      ),
+    };
+
+    return puppeteer.launch(launchOptions);
+  }
+
+  /** 执行一次完整截图流程（启动浏览器 → 导航 → 截图），返回图片 Buffer */
+  private async captureScreenshot(dto: ScreenshotDto): Promise<Buffer> {
+    let browser: puppeteer.Browser | null = null;
+    let page: puppeteer.Page | null = null;
+
+    try {
+      browser = await this.launchBrowser();
+      page = await browser.newPage();
 
       const width = dto.width || 414;
       const height = dto.height || 1080;
@@ -125,49 +174,82 @@ export class ScreenshotService {
         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
       });
 
-      await page.goto(dto.url, {
+      const startTime = Date.now();
+      const response = await page.goto(dto.url, {
         waitUntil: 'domcontentloaded',
-        timeout: 60000,
+        timeout: this.NAV_TIMEOUT_MS,
       });
+      this.logger.log(`页面导航完成: status=${response ? response.status() : 'null'}, 耗时=${Date.now() - startTime}ms, 最终地址=${page.url()}`);
 
       const waitMs = dto.waitMs !== undefined ? dto.waitMs : 3000;
       if (waitMs > 0) {
-        await new Promise(resolve => setTimeout(resolve, waitMs));
+        await this.delay(waitMs);
       }
 
       const format = dto.format || 'png';
       const fullPage = dto.fullPage !== undefined ? dto.fullPage : true;
 
-      let imageBuffer: Buffer;
-
       if (fullPage) {
-        imageBuffer = await this.stitchedScreenshot(page, format, dto.quality, height);
-      } else {
-        const screenshotOptions: puppeteer.ScreenshotOptions = {
-          type: format as 'png' | 'jpeg',
-          encoding: 'binary',
-        };
-        if (format === 'jpeg') {
-          screenshotOptions.quality = dto.quality || 80;
-        }
-        imageBuffer = await page.screenshot(screenshotOptions) as Buffer;
+        return await this.stitchedScreenshot(page, format, dto.quality, height);
       }
 
-      fs.writeFileSync(filepath, imageBuffer);
-      this.logger.log(`截图已保存: ${filepath} (${(imageBuffer.length / 1024).toFixed(1)}KB)`);
-
-      await this.sendFeishuText(
-        `网页截图完成\n目标: ${dto.url}\n查看地址: ${fileUrl}`
-      );
-    } catch (error) {
-      this.logger.error(`截图执行失败: ${error.message}`);
-      await this.sendFeishuText(`网页截图失败: ${dto.url}\n错误: ${error.message}`);
+      const screenshotOptions: puppeteer.ScreenshotOptions = {
+        type: format as 'png' | 'jpeg',
+        encoding: 'binary',
+      };
+      if (format === 'jpeg') {
+        screenshotOptions.quality = dto.quality || 80;
+      }
+      return await page.screenshot(screenshotOptions) as Buffer;
     } finally {
-      this.isProcessing = false;
-      if (browser) {
-        await browser.close().catch(e => this.logger.error(`浏览器关闭失败: ${e.message}`));
+      await this.closeBrowser(browser, page);
+    }
+  }
+
+  /** 关闭页面与浏览器，close 超时或进程残留时强制终止，避免残留 Chromium 持续占用 CPU */
+  private async closeBrowser(browser: puppeteer.Browser | null, page: puppeteer.Page | null) {
+    if (!browser) return;
+
+    const chromiumPid = browser.process()?.pid;
+
+    try {
+      if (page) {
+        await Promise.race([
+          page.close().catch(() => undefined),
+          this.delay(this.CLOSE_TIMEOUT_MS),
+        ]);
+      }
+      await Promise.race([
+        browser.close().catch(() => undefined),
+        this.delay(this.CLOSE_TIMEOUT_MS),
+      ]);
+    } catch (error) {
+      this.logger.warn(`关闭浏览器异常: ${error.message}`);
+    }
+
+    if (chromiumPid && this.isProcessAlive(chromiumPid)) {
+      try {
+        process.kill(chromiumPid, 'SIGKILL');
+        this.logger.warn(`浏览器未正常退出，已强制终止: pid=${chromiumPid}`);
+      } catch (error) {
+        this.logger.warn(`强制终止浏览器失败: pid=${chromiumPid}, ${error.message}`);
       }
     }
+  }
+
+  /** 判断指定进程是否仍然存活 */
+  private isProcessAlive(pid: number): boolean {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** 延时指定毫秒数 */
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /** 分段截图拼接：逐段滚动并截取视口，最后纵向拼接成完整页面截图 */

@@ -23,6 +23,7 @@ import { CustomContentModule } from './custom-content/custom-content.module';
 import { ScreenshotModule } from './screenshot/screenshot.module';
 import { IssueModule } from './issue/issue.module';
 import { FeishuStorageModule } from './feishu-storage/feishu-storage.module';
+import { BrowserTaskLockModule } from './common/browser-task-lock.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { FeishuStorageModule } from './feishu-storage/feishu-storage.module';
     ScreenshotModule,
     IssueModule,
     FeishuStorageModule,
+    BrowserTaskLockModule,
   ],
   controllers: [AppController],
   providers: [
