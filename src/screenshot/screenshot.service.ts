@@ -164,8 +164,7 @@ export class ScreenshotService {
       await page.setViewport({
         width,
         height,
-        // 像素密度直接决定光栅化与编码开销（面积按平方增长），小内存机器默认 1.5
-        deviceScaleFactor: dto.deviceScaleFactor || 1.5,
+        deviceScaleFactor: dto.deviceScaleFactor || 2,
         isMobile: isMobileWidth,
         hasTouch: isMobileWidth,
       });
